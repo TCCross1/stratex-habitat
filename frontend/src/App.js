@@ -1,56 +1,62 @@
-import { useEffect } from "react";
 import "@/App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
-import { HOME } from "@/constants/testIds";
+import { Routes, Route, Navigate } from "react-router-dom";
+import { Toaster } from "@/components/ui/sonner";
+import { useAuth } from "@/context/AuthContext";
+import AppShell from "@/components/layout/AppShell";
+import Login from "@/pages/Login";
+import DigitalTwin from "@/pages/DigitalTwin";
+import SystemsAssets from "@/pages/SystemsAssets";
+import Findings from "@/pages/Findings";
+import Maintenance from "@/pages/Maintenance";
+import Insights from "@/pages/Insights";
+import Quotes from "@/pages/Quotes";
+import Marketplace from "@/pages/Marketplace";
+import Contractors from "@/pages/Contractors";
+import ContractorProfile from "@/pages/ContractorProfile";
+import Reviews from "@/pages/Reviews";
+import Documents from "@/pages/Documents";
+import Reports from "@/pages/Reports";
+import ModulePage from "@/pages/ModulePage";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+function Protected({ children }) {
+  const { user } = useAuth();
+  if (user === null) return <div className="h-screen grid place-items-center bg-[#050505] text-[#71717a]">Loading…</div>;
+  if (!user) return <Navigate to="/login" replace />;
+  return children;
+}
 
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
+export default function App() {
+  const { user } = useAuth();
+  const home = user?.role === "contractor" ? "/marketplace" : "/twin";
 
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
-
-  return (
-    <div>
-      <header className="App-header">
-        <a
-          data-testid={HOME.emergentLink}
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
-    </div>
-  );
-};
-
-function App() {
   return (
     <div className="App">
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+      <Toaster position="top-right" theme="dark" />
+      <Routes>
+        <Route path="/login" element={user ? <Navigate to={home} replace /> : <Login />} />
+        <Route element={<Protected><AppShell /></Protected>}>
+          <Route path="/" element={<Navigate to={home} replace />} />
+          <Route path="/twin" element={<DigitalTwin />} />
+          <Route path="/systems" element={<SystemsAssets />} />
+          <Route path="/telemetry" element={<ModulePage kind="telemetry" />} />
+          <Route path="/findings" element={<Findings />} />
+          <Route path="/maintenance" element={<Maintenance />} />
+          <Route path="/insights" element={<Insights />} />
+          <Route path="/design-studio" element={<ModulePage kind="design-studio" />} />
+          <Route path="/scenario-planner" element={<ModulePage kind="scenario-planner" />} />
+          <Route path="/quotes" element={<Quotes />} />
+          <Route path="/marketplace" element={<Marketplace />} />
+          <Route path="/contractors" element={<Contractors />} />
+          <Route path="/contractor-profile" element={<ContractorProfile />} />
+          <Route path="/reviews" element={<Reviews />} />
+          <Route path="/requests" element={<ModulePage kind="requests" />} />
+          <Route path="/documents" element={<Documents />} />
+          <Route path="/reports" element={<Reports />} />
+          <Route path="/settings" element={<ModulePage kind="settings" />} />
+          <Route path="/help" element={<ModulePage kind="help" />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </div>
   );
 }
-
-export default App;
