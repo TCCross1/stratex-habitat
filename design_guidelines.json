@@ -1,0 +1,120 @@
+{
+  "theme": "dark",
+  "archetype": "Electric & Neon + Swiss & High-Contrast (Investor-Grade / Command Center)",
+  "design_philosophy": "A premium dark control-room dashboard. Technical, futurist, dense, and precise. No generic SaaS aesthetics. No purple/blue AI templates. No playful rounded bubbles.",
+  "colors": {
+    "background_app": "#050505",
+    "surface_primary": "#111113",
+    "surface_secondary": "#1A1A1E",
+    "primary_accent": "#14F1D9",
+    "primary_accent_glow": "rgba(20, 241, 217, 0.2)",
+    "highlight_accent": "#FF6B00",
+    "highlight_accent_glow": "rgba(255, 107, 0, 0.2)",
+    "text_primary": "#FFFFFF",
+    "text_secondary": "#A1A1AA",
+    "text_muted": "#71717A",
+    "border_subtle": "#27272A",
+    "border_active": "#3F3F46",
+    "status": {
+      "excellent": "#14F1D9",
+      "good": "#00FF66",
+      "fair": "#FFB800",
+      "alert": "#FF3333"
+    }
+  },
+  "typography": {
+    "fonts": {
+      "headings": "Outfit, sans-serif",
+      "body": "IBM Plex Sans, sans-serif",
+      "mono_data": "JetBrains Mono, monospace"
+    },
+    "hierarchy": {
+      "h1": "text-2xl sm:text-3xl tracking-tight font-semibold",
+      "h2": "text-xl tracking-tight font-medium",
+      "label_overline": "text-[10px] tracking-[0.2em] uppercase font-bold",
+      "data_value": "text-2xl sm:text-3xl font-mono font-medium",
+      "body": "text-sm leading-relaxed"
+    }
+  },
+  "layout_and_spacing": {
+    "strategy": "Control Room Grid (Dense Workspace)",
+    "container_gaps": "gap-4",
+    "internal_padding": "p-4 sm:p-5",
+    "border_radius": "rounded-sm",
+    "app_shell": "100vh fixed layout on desktop with independent scrolling panels. Bottom nav for mobile. Collapsible/adaptive side rail for tablet."
+  },
+  "visual_enhancers": {
+    "shadows": "Minimal drop shadows. Rely on subtle 1px borders and inner neon glows for active states.",
+    "gradients": "BANNED: Purple/Blue gradients. PERMITTED: Very subtle black-to-graphite linear gradients (bg-gradient-to-b from-[#111113] to-[#0A0A0B]) for panels.",
+    "borders": "1px solid border-border_subtle. Active/selected elements use border-primary_accent with primary_accent_glow box-shadow.",
+    "3d_effect": "Central stage should use high-contrast imagery or CSS wireframe visuals glowing in highlight_accent (Orange)."
+  },
+  "media_urls": {
+    "avatars": [
+      {
+        "url": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDF8MHwxfHNlYXJjaHwzfHxwcm9mZXNzaW9uYWwlMjBoZWFkc2hvdCUyMHBvcnRyYWl0fGVufDB8fHx8MTc4MjMzOTcwNHww&ixlib=rb-4.1.0&q=85",
+        "category": "Homeowner / Profile Chip",
+        "description": "Primary user avatar in top nav"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1607503873903-c5e95f80d7b9?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDF8MHwxfHNlYXJjaHw0fHxwcm9mZXNzaW9uYWwlMjBoZWFkc2hvdCUyMHBvcnRyYWl0fGVufDB8fHx8MTc4MjMzOTcwNHww&ixlib=rb-4.1.0&q=85",
+        "category": "Contractor 1",
+        "description": "Avatar for top contractor quote"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDF8MHwxfHNlYXJjaHwyfHxwcm9mZXNzaW9uYWwlMjBoZWFkc2hvdCUyMHBvcnRyYWl0fGVufDB8fHx8MTc4MjMzOTcwNHww&ixlib=rb-4.1.0&q=85",
+        "category": "Contractor 2",
+        "description": "Avatar for secondary contractor quote"
+      }
+    ],
+    "property": [
+      {
+        "url": "https://images.unsplash.com/photo-1767950470198-c9cd97f8ed87?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MTN8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBsdXh1cnklMjB2aWxsYSUyMG5pZ2h0fGVufDB8fHx8MTc4MjQxNDg1NHww&ixlib=rb-4.1.0&q=85",
+        "category": "Property Thumbnail",
+        "description": "Thumbnail for Villa Horizon in the left nav"
+      }
+    ],
+    "3d_assets": [
+      {
+        "url": "https://images.unsplash.com/photo-1692798346701-96ffea619f9a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDN8MHwxfHNlYXJjaHwxfHxibHVlcHJpbnQlMjBhcmNoaXRlY3R1cmUlMjBnbG93aW5nfGVufDB8fHx8MTc4MjQxNDg2Mnww&ixlib=rb-4.1.0&q=85",
+        "category": "Central 3D Stage Placeholder",
+        "description": "Blueprint/wireframe architecture to be used in the central 3D digital twin stage if R3F/Spline isn't implemented. Apply a CSS filter to give it an orange thermal glow."
+      }
+    ]
+  },
+  "component_instructions": {
+    "top_nav": {
+      "layout": "Flex horizontal, h-14, sticky top-0, z-50, border-b border-[#27272A].",
+      "brand": "STRATEX (bold white) HABITAT™ (neon teal). Hexagon logo.",
+      "elements": "⌘K search bar, Notification bell, Profile chip (avatar, name, role)."
+    },
+    "left_sidebar": {
+      "layout": "Flex horizontal. Thin vertical icon rail on extreme left (cube, chart, ruler, doc, dollar, folder, people, shield, gear, help). Wider section nav panel next to it.",
+      "sections": "TWIN, INTELLIGENCE, DESIGN & PLAN, PROCUREMENT, DOCUMENTS.",
+      "property_card": "Top of section nav. Thumbnail, 'Villa Horizon', 'Austin TX', Connected green dot."
+    },
+    "center_stage": {
+      "layout": "Flex-1, flex vertical, gap-4, relative.",
+      "header": "Title 'Digital Twin' + 'Live' neon badge.",
+      "kpi_cards": "Row of status cards. Property Score 87/100 (ring), Energy Efficiency 72, Water Efficiency 64, System Health 91, Maintenance Alerts 3 Active. Use JetBrains Mono for numbers.",
+      "3d_twin_area": "Large central area. Use a glowing neon wireframe representation (orange thermal glow). Floating Layers toggle panel overlay (Thermal, Energy Flow, Water Flow, Structural, Electrical, Plumbing, HVAC, Roofing).",
+      "bottom_analytics": "Row of cards (Monthly Energy Cost, Water Usage, System Uptime, Carbon Footprint) with sparklines and % change."
+    },
+    "right_inspector": {
+      "layout": "w-80 or w-96 flex-shrink-0 flex vertical gap-4 border-l border-[#27272A] p-4 overflow-y-auto.",
+      "content": "SELECTED ASSET (Roof - North Slope), CONDITION bar, AI FINDING (priority badge), RECOMMENDED ACTIONS (price range + Request Quote button in neon teal), TOP CONTRACTOR QUOTES list (avatar, star ratings, prices)."
+    }
+  },
+  "testing": {
+    "data_testid": "ALL interactive elements, buttons, inputs, links, navigation items, and major KPI text MUST have a data-testid attribute using kebab-case role-based naming (e.g., 'nav-twin-link', 'kpi-property-score', 'action-request-quote')."
+  },
+  "instructions_to_main_agent": [
+    "Install and use 'lucide-react' for all icons (cube, chart, ruler, etc.).",
+    "Install and use 'recharts' for the bottom analytics sparklines.",
+    "Implement the layout with strict technical styling. Avoid generous padding; use compact density.",
+    "For the central 3D Twin render, if a 3D library (like three.js or react-three-fiber) is too complex for an MVP, use the provided '3d_assets' image URL with a custom CSS styling (mix-blend-mode, sepia, hue-rotate) to achieve an orange thermal glow over a dark background.",
+    "Ensure 'STRATEX' is font-bold text-white and 'HABITAT™' is text-[#14F1D9].",
+    "Make sure the app shell handles responsive states: desktop (full sidebars), tablet (adaptive rail), mobile (stacked cards, bottom nav).",
+    "Strictly adhere to the dark graphite panels (bg-[#111113]) and 1px borders (border-[#27272A]) for the 'investor-grade control room' look."
+  ]
+}
