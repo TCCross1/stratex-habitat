@@ -18,6 +18,7 @@ import Reviews from "@/pages/Reviews";
 import Documents from "@/pages/Documents";
 import Reports from "@/pages/Reports";
 import ModulePage from "@/pages/ModulePage";
+import DesignStudio from "@/pages/DesignStudio";
 
 function Protected({ children }) {
   const { user } = useAuth();
@@ -50,7 +51,7 @@ export default function App() {
           <Route path="/findings" element={<Findings />} />
           <Route path="/maintenance" element={<Maintenance />} />
           <Route path="/insights" element={<Insights />} />
-          <Route path="/design-studio" element={<ModulePage kind="design-studio" />} />
+          <Route path="/design-studio" element={<DesignStudio />} />
           <Route path="/scenario-planner" element={<ModulePage kind="scenario-planner" />} />
           <Route path="/quotes" element={<Quotes />} />
           <Route path="/marketplace" element={<Marketplace />} />

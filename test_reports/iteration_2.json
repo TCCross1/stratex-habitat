@@ -1,0 +1,42 @@
+{
+  "summary": "Full end-to-end testing of the new STRATEX HABITAT Design Studio module (iteration 2). Backend: 16/16 new design-studio pytest tests passed plus 29/29 regression tests from iteration_1 (45/45 total). Live Gemini Nano Banana render endpoint (POST /api/design/render) was also exercised once with RUN_RENDER_TEST=1 — returned a valid /api/files/... URL in ~13s. Frontend: logged in as homeowner, navigated to /design-studio via nav-design-studio, verified design-canvas, before-after, zones-panel and saved-tray (6 preset scenario cards). Zone selection (siding_main) loaded 19 color swatches; applying a swatch surfaced the render-btn. Lighting (sunset) and mode (advanced) toggles work. Loading a preset card exposed scenario-request-quote; favorite toggle, compare flow (compare-toggle on 2 cards -> compare-btn -> dialog with 2 compare-col-{id}), save-scenario flow (save-scenario-btn -> scenario-name -> scenario-save-confirm), and scenario-request-quote -> sq-submit all worked. Regression: /quotes page shows the new 'Design Studio — ...' quotes alongside legacy quotes — homeowner Quotes, Twin and Marketplace flows still functional.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "DesignStudio dialogs (SaveDialog, CompareDialog, RequestQuoteScenario)", "issues": ["A11y warning in console: 'Missing Description or aria-describedby={undefined} for DialogContent' on every Radix Dialog open. Non-blocking but should add <DialogDescription> or aria-describedby for screen-reader compliance."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_design_studio.py",
+    "/app/backend/tests/test_backend.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/design_studio.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "OPTIONAL — Add DialogDescription / aria-describedby on Radix DialogContent inside DesignStudio (SaveDialog, CompareDialog, RequestQuoteScenario) to clear a11y warnings.",
+    "OPTIONAL — DELETE /api/design/scenarios/{sid} silently no-ops when the id belongs to a preset (filter is_preset:False) and still returns 200 {ok:true}. Consider returning 403/409 with a 'cannot delete preset' message so the UI can show feedback.",
+    "OPTIONAL — pytest deprecation: TestScenarioCRUD uses a class-scoped fixture as instance method (warning emitted). Trivial refactor to classmethod or module-scope fixture.",
+    "NOTE — After saving a new scenario it becomes the 'active' scenario, so clicking scenario-request-quote next will create a quote against the just-saved scenario (not against the previously-clicked preset). This is current behaviour and may be intentional but worth confirming in product."
+  ],
+  "critical_code_review_comments": [
+    "server.py has grown to ~744 lines with the design-studio endpoints now included; this is above the 700-line soft limit. Consider splitting design endpoints into routers/design.py to keep modules focused (auth/properties/quotes/contractors/core/design).",
+    "design_render swallows all exceptions into a generic 500 'Render failed. Please try again.' — log line includes the real error which is good, but the client gets no actionable detail. Consider surfacing a sanitized error code (e.g. distinguishing 504 timeout from 502 no-image vs 500).",
+    "scenario_request_quote routes to contractors with trade 'Renovation' first, otherwise falls back to ALL contractors. None of the seeded contractors have 'Renovation' trade, so currently the lead is broadcast to every contractor (verified — the design-studio quote shows up in horizon@ marketplace leads). Consider seeding at least one Renovation contractor or routing by zone-derived trades (Roofing, Siding, Windows, etc.) for more realistic targeting.",
+    "design.products() rebuilds the product list with fresh uuid4() ids on every call; the seed only inserts on first run (count==0), so persisted products keep stable ids — good. But /api/design/recommendations returns _recos() with hard-coded string ids (luxury/budget/...) which is fine. Keep this asymmetry documented.",
+    "/api/design/scenarios listing has no auth-by-owner check — any authenticated user can list scenarios for any property_id if they know it. Low risk in a single-tenant demo but worth tightening before multi-tenant.",
+    "MongoDB _id is correctly excluded via {_id:0} projections across all design endpoints — good."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_design_studio.py (new — 17 tests, render gated by RUN_RENDER_TEST env)"
+  ],
+  "success_rate": { "backend": "100% (16/16 design + 29/29 regression + 1/1 live render)", "frontend": "100% on all 10 tested design-studio flows" },
+  "test_credentials": "alex@stratexhabitat.com/Demo123! (homeowner), horizon@stratexhabitat.com/Demo123! (contractor), admin@stratexhabitat.com/Admin123! (executive). All in /app/memory/test_credentials.md.",
+  "seed_data_creation": "Created TEST_-prefixed user scenario 'TEST_ My Custom Look' (deleted in same test class) via backend tests. Frontend test created saved scenario 'TEST_UI Custom Design 2026' and triggered a request-quote that produced two 'Design Studio — ...' quotes in the homeowner Quotes list. Non-destructive.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Design Studio backend regression lives at /app/backend/tests/test_design_studio.py (17 tests). The Gemini render test is gated behind RUN_RENDER_TEST=1 to save Emergent LLM credits — keep it gated. Frontend data-testids of note: nav-design-studio, design-canvas, before-after, zones-panel, saved-tray, zone-{zid}, swatch-{prodId}-{Color-With-Dashes}, render-btn, lighting-{daylight|overcast|sunset}, mode-{quick|advanced}, scenario-card-{id}, fav-{id}, compare-toggle-{id}, compare-btn, compare-col-{id}, save-scenario-btn, scenario-name, scenario-save-confirm, scenario-request-quote, sq-type, sq-priority, sq-submit. NOTE: after saving a scenario, that scenario becomes 'active' for the subsequent request-quote action.",
+  "rca of the issue": "No issues required RCA. All design-studio review-request items verified green: 13 zones, 16 library products with category/tone/price filters, 6 recommendations, property base façade, 6 preset scenarios, scenario CRUD (create/patch favorite/delete with preset protection), live Gemini render returning /api/files/... URL, request-quote flow producing a Renovation-category quote with affected_zones+selections+scenario_preview visible in homeowner /quotes and routed to contractor marketplace leads (fallback-to-all since no Renovation-trade contractor seeded)."
+}

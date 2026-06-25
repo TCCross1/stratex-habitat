@@ -513,6 +513,201 @@ async def root():
     return {"service": "STRATEX HABITAT", "status": "online"}
 
 # ---------------------------------------------------------------------------
+# Design Studio
+# ---------------------------------------------------------------------------
+import base64 as _b64  # noqa: E402
+from design import ZONES, recommendations as _recos, seed_design, BASE_FACADE  # noqa: E402
+
+
+class ScenarioReq(BaseModel):
+    property_id: str
+    name: str
+    style: Optional[str] = "Custom"
+    selections: List[dict] = []
+    preview_url: Optional[str] = None
+    base_image: Optional[str] = None
+    lighting: Optional[str] = "daylight"
+    notes: Optional[str] = ""
+    est_low: Optional[float] = 0
+    est_high: Optional[float] = 0
+
+
+class ScenarioPatch(BaseModel):
+    name: Optional[str] = None
+    notes: Optional[str] = None
+    favorite: Optional[bool] = None
+    quote_ready: Optional[bool] = None
+
+
+class RenderReq(BaseModel):
+    base_image: str
+    selections: List[dict] = []
+    lighting: Optional[str] = "daylight"
+
+
+class DesignQuoteReq(BaseModel):
+    seriousness: Literal["low", "medium", "high", "urgent"] = "medium"
+    project_type: Literal["repair", "upgrade", "maintenance", "renovation"] = "renovation"
+    target_timeframe: Optional[str] = "60 days"
+    desired_start: Optional[str] = None
+    notes: Optional[str] = ""
+
+
+@api_router.get("/design/zones")
+async def design_zones(user: dict = Depends(get_current_user)):
+    return ZONES
+
+
+@api_router.get("/design/library")
+async def design_library(category: Optional[str] = None, style: Optional[str] = None,
+                         tone: Optional[str] = None, price_tier: Optional[str] = None,
+                         manufacturer: Optional[str] = None, maintenance: Optional[str] = None,
+                         q: Optional[str] = None, user: dict = Depends(get_current_user)):
+    query = {}
+    if category:
+        query["category"] = category
+    if style:
+        query["styles"] = style
+    if price_tier:
+        query["price_tier"] = price_tier
+    if manufacturer:
+        query["manufacturer"] = manufacturer
+    if maintenance:
+        query["maintenance"] = maintenance
+    items = await db.design_products.find(query, {"_id": 0}).to_list(500)
+    if tone:
+        items = [p for p in items if any(c.get("tone") == tone for c in p["colors"])]
+    if q:
+        ql = q.lower()
+        items = [p for p in items if ql in (p["family"] + p["manufacturer"] + p["profile"]).lower()]
+    items.sort(key=lambda p: -p.get("popularity", 0))
+    return items
+
+
+@api_router.get("/design/recommendations")
+async def design_recommendations(user: dict = Depends(get_current_user)):
+    return _recos()
+
+
+@api_router.get("/design/property/{pid}/base")
+async def design_base(pid: str, user: dict = Depends(get_current_user)):
+    b = await db.design_bases.find_one({"property_id": pid}, {"_id": 0})
+    return b or {"property_id": pid, "base_image": BASE_FACADE, "source": "Default façade"}
+
+
+@api_router.get("/design/scenarios")
+async def list_scenarios(property_id: str, user: dict = Depends(get_current_user)):
+    return await db.design_scenarios.find({"property_id": property_id}, {"_id": 0}).sort("created_at", -1).to_list(200)
+
+
+@api_router.post("/design/scenarios")
+async def create_scenario(body: ScenarioReq, user: dict = Depends(get_current_user)):
+    sid = str(uuid.uuid4())
+    doc = {"id": sid, "property_id": body.property_id, "owner_id": user["id"], "name": body.name,
+           "style": body.style, "selections": body.selections, "preview_url": body.preview_url,
+           "base_image": body.base_image or BASE_FACADE, "lighting": body.lighting, "notes": body.notes,
+           "est_low": body.est_low, "est_high": body.est_high, "is_preset": False, "favorite": False,
+           "quote_ready": False, "version": 1, "linked_quotes": [], "created_at": now_iso()}
+    await db.design_scenarios.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api_router.patch("/design/scenarios/{sid}")
+async def patch_scenario(sid: str, body: ScenarioPatch, user: dict = Depends(get_current_user)):
+    update = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not update:
+        raise HTTPException(status_code=400, detail="Nothing to update")
+    update["version"] = (await db.design_scenarios.find_one({"id": sid}) or {}).get("version", 1) + 1
+    res = await db.design_scenarios.update_one({"id": sid}, {"$set": update})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+    return await db.design_scenarios.find_one({"id": sid}, {"_id": 0})
+
+
+@api_router.delete("/design/scenarios/{sid}")
+async def delete_scenario(sid: str, user: dict = Depends(get_current_user)):
+    await db.design_scenarios.delete_one({"id": sid, "is_preset": False})
+    return {"ok": True}
+
+
+def _build_render_prompt(selections, lighting):
+    parts = []
+    for s in selections:
+        z = s.get("zone", ""); p = s.get("product", ""); c = s.get("color", "")
+        label = next((zz["label"] for zz in ZONES if zz["id"] == z), z)
+        parts.append(f"{label}: {p} in {c}")
+    light = {"daylight": "bright midday daylight, clear sky",
+             "overcast": "soft overcast diffuse light",
+             "sunset": "warm golden-hour sunset light with long shadows"}.get(lighting, "daylight")
+    return ("Keep the EXACT same house, camera angle, geometry, lawn and surroundings. "
+            "Re-skin only these exterior surfaces with photorealistic, physically-based materials, "
+            "correct texture scale, believable shadows, edge-aware masking around windows and trim, "
+            "and realistic reflections: " + "; ".join(parts) + f". Lighting: {light}. "
+            "Architecturally credible, expensive real-estate photo quality. No text, no watermark.")
+
+
+@api_router.post("/design/render")
+async def design_render(body: RenderReq, user: dict = Depends(get_current_user)):
+    """Live photorealistic re-skin via Gemini Nano Banana image editing (Emergent key)."""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+        img_bytes = requests.get(body.base_image, timeout=30).content
+        img_b64 = _b64.b64encode(img_bytes).decode("utf-8")
+        chat = LlmChat(api_key=EMERGENT_KEY, session_id=str(uuid.uuid4()),
+                       system_message="You are an expert architectural exterior visualization renderer.")
+        chat.with_model("gemini", "gemini-3.1-flash-image-preview").with_params(modalities=["image", "text"])
+        msg = UserMessage(text=_build_render_prompt(body.selections, body.lighting),
+                          file_contents=[ImageContent(img_b64)])
+        _text, images = await chat.send_message_multimodal_response(msg)
+        if not images:
+            raise HTTPException(status_code=502, detail="Renderer returned no image")
+        out = _b64.b64decode(images[0]["data"])
+        path = f"{APP_NAME}/renders/{user['id']}/{uuid.uuid4()}.png"
+        put_object(path, out, "image/png")
+        await db.files.insert_one({"id": str(uuid.uuid4()), "storage_path": path,
+                                   "original_filename": "render.png", "content_type": "image/png",
+                                   "size": len(out), "owner_id": user["id"], "is_deleted": False,
+                                   "created_at": now_iso()})
+        return {"url": f"/api/files/{path}"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"render failed: {e}")
+        raise HTTPException(status_code=500, detail="Render failed. Please try again.")
+
+
+@api_router.post("/design/scenarios/{sid}/request-quote")
+async def scenario_request_quote(sid: str, body: DesignQuoteReq, user: dict = Depends(require_role("homeowner"))):
+    sc = await db.design_scenarios.find_one({"id": sid}, {"_id": 0})
+    if not sc:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+    zones = sorted({s.get("zone") for s in sc.get("selections", [])})
+    zone_labels = [next((z["label"] for z in ZONES if z["id"] == zid), zid) for zid in zones]
+    qid = str(uuid.uuid4())
+    desc_lines = [f"{s.get('product')} — {s.get('color')}" for s in sc.get("selections", [])]
+    quote = {"id": qid, "owner_id": user["id"], "owner_name": user["name"],
+             "property_id": sc["property_id"], "property_name": "Villa Horizon",
+             "finding_id": None, "title": f"Design Studio — {sc['name']}",
+             "category": "Renovation", "project_type": body.project_type,
+             "description": f"Exterior {body.project_type}: " + "; ".join(desc_lines),
+             "seriousness": body.seriousness, "target_timeframe": body.target_timeframe,
+             "desired_start": body.desired_start, "status": "open",
+             "design_scenario_id": sid, "scenario_name": sc["name"], "scenario_preview": sc.get("preview_url"),
+             "affected_zones": zone_labels, "selections": sc.get("selections", []),
+             "est_low": sc.get("est_low"), "est_high": sc.get("est_high"),
+             "created_at": now_iso(), "contractor_responses": []}
+    contractors = await db.contractors.find({"trades": "Renovation"}, {"_id": 0, "id": 1}).to_list(50)
+    if not contractors:
+        contractors = await db.contractors.find({}, {"_id": 0, "id": 1}).to_list(50)
+    quote["routed_to"] = [c["id"] for c in contractors]
+    await db.quotes.insert_one(quote)
+    await db.design_scenarios.update_one({"id": sid}, {"$set": {"quote_ready": True},
+                                                       "$push": {"linked_quotes": qid}})
+    quote.pop("_id", None)
+    return quote
+
+# ---------------------------------------------------------------------------
 # App wiring
 # ---------------------------------------------------------------------------
 app.include_router(api_router)
@@ -540,7 +735,9 @@ async def shutdown():
 # Seed
 # ---------------------------------------------------------------------------
 from seed import run_seed  # noqa: E402
+from design import seed_design as _seed_design  # noqa: E402
 
 
 async def seed_data():
     await run_seed(db, hash_password)
+    await _seed_design(db)
