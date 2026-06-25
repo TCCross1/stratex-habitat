@@ -15,14 +15,14 @@ export default function AppShell() {
         <TopNav onMenu={() => setMobileOpen(true)} />
         <div className="flex flex-1 overflow-hidden">
           <IconRail />
-          <div className="hidden lg:flex"><SectionNav /></div>
-          <main className="flex-1 overflow-hidden pb-16 lg:pb-0">
+          <div className="hidden md:flex"><SectionNav /></div>
+          <main className="flex-1 overflow-hidden pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
             <Outlet />
           </main>
         </div>
         <MobileNav />
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-          <SheetContent side="left" className="p-0 w-[260px] bg-[#0a0a0b] border-[#27272a]">
+          <SheetContent side="left" className="p-0 w-[280px] bg-[#0a0a0b] border-[#27272a]">
             <SectionNav onNavigate={() => setMobileOpen(false)} />
           </SheetContent>
         </Sheet>

@@ -13,7 +13,7 @@ export default function SectionNav({ onNavigate }) {
   const go = (to) => { navigate(to); onNavigate && onNavigate(); };
 
   return (
-    <aside className="w-[240px] shrink-0 border-r border-[#27272a] bg-[#0a0a0b] flex flex-col overflow-y-auto"
+    <aside className="w-[280px] md:w-[210px] lg:w-[240px] shrink-0 border-r border-[#27272a] bg-[#0a0a0b] flex flex-col overflow-y-auto"
       data-testid="section-nav">
       {/* property card */}
       {property && user?.role !== "contractor" && (

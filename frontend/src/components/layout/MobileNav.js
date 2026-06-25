@@ -23,8 +23,8 @@ export default function MobileNav() {
   const tabs = user?.role === "contractor" ? CON_TABS : HOME_TABS;
 
   return (
-    <nav className="lg:hidden fixed bottom-0 inset-x-0 h-16 bg-[#070708] border-t border-[#27272a]
-      flex items-center justify-around z-50" data-testid="mobile-nav">
+    <nav className="md:hidden fixed bottom-0 inset-x-0 bg-[#070708] border-t border-[#27272a]
+      flex items-center justify-around z-50 h-16 safe-bottom pl-safe pr-safe" data-testid="mobile-nav">
       {tabs.map((t) => {
         const active = pathname === t.to;
         return (

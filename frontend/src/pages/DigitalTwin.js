@@ -2,11 +2,12 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAppData } from "@/context/AppDataContext";
+import { useDevice } from "@/hooks/useDevice";
 import { Sparkline, Change } from "@/components/Primitives";
 import Inspector from "@/components/Inspector";
 import { Switch } from "@/components/ui/switch";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
-import { Box, Grid3x3, Crosshair, MousePointer2, Ruler, PanelRightOpen } from "lucide-react";
+import { Box, Grid3x3, Crosshair, MousePointer2, Ruler, PanelRightOpen, Layers as LayersIcon, X } from "lucide-react";
 
 const LAYERS = ["Thermal", "Energy Flow", "Water Flow", "Structural", "Electrical", "Plumbing", "HVAC", "Roofing"];
 const STATUS_COLOR = { Excellent: "#14f1d9", Good: "#00ff66", Fair: "#ffb800", Active: "#ff6b00" };
@@ -26,7 +27,7 @@ function Ring({ value }) {
 
 function KpiCard({ label, value, sub, subColor, children, testid }) {
   return (
-    <div className="kpi-card flex-1 min-w-[150px]" data-testid={testid}>
+    <div className="kpi-card flex-1 min-w-[150px] shrink-0 sm:shrink" data-testid={testid}>
       <div className="text-[11px] text-[#71717a] mb-1.5">{label}</div>
       <div className="flex items-center gap-3">
         {children}
@@ -41,10 +42,12 @@ function KpiCard({ label, value, sub, subColor, children, testid }) {
 
 export default function DigitalTwin() {
   const { property, analytics, findings, pid } = useAppData();
+  const device = useDevice();
   const [layers, setLayers] = useState({ Thermal: true, "Energy Flow": true, "Water Flow": false,
     Structural: true, Electrical: true, Plumbing: false, HVAC: true, Roofing: true });
   const [view, setView] = useState("3D");
   const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [showLayers, setShowLayers] = useState(!device.isPhone);
 
   const assets = useQuery({ queryKey: ["assets", pid],
     queryFn: async () => (await api.get(`/properties/${pid}/assets`)).data, enabled: !!pid });
@@ -83,7 +86,7 @@ export default function DigitalTwin() {
         </div>
 
         {/* KPI cards */}
-        <div className="flex flex-wrap gap-3 mb-4">
+        <div className="flex gap-3 mb-4 overflow-x-auto no-scrollbar sm:flex-wrap sm:overflow-visible">
           <KpiCard label="Property Score" value="" testid="kpi-property-score">
             <Ring value={property.property_score} />
             <div><div className="font-mono text-xl text-white">{property.property_score}<span className="text-xs text-[#71717a]">/100</span></div></div>
@@ -102,23 +105,33 @@ export default function DigitalTwin() {
         </div>
 
         {/* twin stage */}
-        <div className="relative rounded-md border border-[#27272a] twin-stage overflow-hidden mb-4"
-          style={{ minHeight: 420 }} data-testid="twin-stage">
+        <div className="relative rounded-md border border-[#27272a] twin-stage overflow-hidden mb-4 min-h-[320px] sm:min-h-[420px]"
+          data-testid="twin-stage">
           {/* layers panel */}
-          <div className="absolute left-3 top-3 z-20 w-44 rounded-md border border-[#27272a] bg-[#0a0a0bcc] backdrop-blur p-3"
-            data-testid="layers-panel">
-            <div className="text-sm font-medium mb-2">Layers</div>
-            <div className="space-y-1.5">
-              {LAYERS.map((l) => (
-                <label key={l} className="flex items-center justify-between text-[12px] text-[#a1a1aa] cursor-pointer">
-                  {l}
-                  <Switch checked={layers[l]} onCheckedChange={(v) => setLayers({ ...layers, [l]: v })}
-                    data-testid={`layer-${l.toLowerCase().replace(/\s/g, "-")}`}
-                    className="scale-75" />
-                </label>
-              ))}
+          {showLayers ? (
+            <div className="absolute left-3 top-3 z-20 w-40 sm:w-44 rounded-md border border-[#27272a] bg-[#0a0a0bee] backdrop-blur p-3"
+              data-testid="layers-panel">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium">Layers</span>
+                <button onClick={() => setShowLayers(false)} className="sm:hidden text-[#71717a]" data-testid="layers-collapse"><X size={14} /></button>
+              </div>
+              <div className="space-y-1.5">
+                {LAYERS.map((l) => (
+                  <label key={l} className="flex items-center justify-between text-[12px] text-[#a1a1aa] cursor-pointer">
+                    {l}
+                    <Switch checked={layers[l]} onCheckedChange={(v) => setLayers({ ...layers, [l]: v })}
+                      data-testid={`layer-${l.toLowerCase().replace(/\s/g, "-")}`}
+                      className="scale-75" />
+                  </label>
+                ))}
+              </div>
             </div>
-          </div>
+          ) : (
+            <button onClick={() => setShowLayers(true)} data-testid="layers-expand"
+              className="absolute left-3 top-3 z-20 flex items-center gap-1.5 rounded-md border border-[#27272a] bg-[#0a0a0bee] backdrop-blur px-3 py-2 text-xs text-[#a1a1aa]">
+              <LayersIcon size={14} /> Layers
+            </button>
+          )}
 
           <img src={property.twin_image} alt="Digital twin" data-testid="twin-image"
             className="absolute inset-0 w-full h-full object-contain p-8"

@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Search, Bell, ChevronDown, Command } from "lucide-react";
+import { Search, Bell, ChevronDown, Command, Menu } from "lucide-react";
 import { Brand } from "@/components/Brand";
 import { useAuth } from "@/context/AuthContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -17,24 +17,24 @@ export default function TopNav({ onMenu }) {
   const navigate = useNavigate();
 
   return (
-    <header className="h-14 flex items-center gap-4 px-4 border-b border-[#27272a] bg-[#070708] shrink-0 z-40"
+    <header className="h-14 flex items-center gap-2 sm:gap-4 px-3 sm:px-4 border-b border-[#27272a] bg-[#070708] shrink-0 z-40 safe-top pl-safe pr-safe"
       data-testid="top-nav">
-      <button className="lg:hidden rail-btn" onClick={onMenu} data-testid="mobile-menu-btn">
-        <Search size={18} />
+      <button className="md:hidden rail-btn !w-9 !h-9" onClick={onMenu} data-testid="mobile-menu-btn">
+        <Menu size={20} />
       </button>
       <div className="hidden sm:block"><Brand /></div>
       <div className="sm:hidden"><Brand compact /></div>
 
-      <div className="flex-1 max-w-xl mx-auto">
+      <div className="flex-1 max-w-xl sm:mx-auto">
         <div className="relative">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#71717a]" />
           <input
             data-testid="global-search"
             placeholder="Search property, system, finding..."
-            className="w-full bg-[#111113] border border-[#27272a] rounded-md h-9 pl-9 pr-16 text-sm
+            className="w-full bg-[#111113] border border-[#27272a] rounded-md h-9 pl-9 pr-4 sm:pr-16 text-sm
               text-white placeholder:text-[#71717a] focus:outline-none focus:border-[#3f3f46]"
           />
-          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5
+          <span className="hidden sm:flex absolute right-2.5 top-1/2 -translate-y-1/2 items-center gap-0.5
             text-[10px] text-[#71717a] border border-[#27272a] rounded px-1.5 py-0.5">
             <Command size={10} /> K
           </span>
