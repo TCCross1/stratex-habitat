@@ -2,6 +2,7 @@ import "@/App.css";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { useAuth } from "@/context/AuthContext";
+import { Brand } from "@/components/Brand";
 import AppShell from "@/components/layout/AppShell";
 import Login from "@/pages/Login";
 import DigitalTwin from "@/pages/DigitalTwin";
@@ -20,7 +21,14 @@ import ModulePage from "@/pages/ModulePage";
 
 function Protected({ children }) {
   const { user } = useAuth();
-  if (user === null) return <div className="h-screen grid place-items-center bg-[#050505] text-[#71717a]">Loading…</div>;
+  if (user === null) return (
+    <div className="h-screen grid place-items-center bg-[#050505]">
+      <div className="flex flex-col items-center gap-4">
+        <Brand />
+        <span className="text-[#71717a] text-sm animate-pulse">Loading your property intelligence…</span>
+      </div>
+    </div>
+  );
   if (!user) return <Navigate to="/login" replace />;
   return children;
 }
