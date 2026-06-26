@@ -1,16 +1,25 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { popBack } from "@/lib/navHistory";
+import { popBack, canGoBack } from "@/lib/navHistory";
 
 export default function BackButton() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const home = user?.role === "contractor" ? "/marketplace" : "/twin";
 
+  // On the home screen there's nothing meaningful to go back to — hide it.
+  if (location.pathname === home || location.pathname === "/") return null;
+
   const goBack = () => {
-    const prev = popBack();
-    navigate(prev || home);
+    // Prefer the real in-app history (never bounces through /login).
+    if (canGoBack()) {
+      const prev = popBack();
+      navigate(prev || home);
+    } else {
+      navigate(home);
+    }
   };
 
   return (
@@ -27,4 +36,3 @@ export default function BackButton() {
     </button>
   );
 }
-
