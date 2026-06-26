@@ -19,7 +19,7 @@ export function Brand({ compact = false }) {
   }
   return (
     <div className="flex items-center" data-testid="brand-logo">
-      <img src={LOGO_FULL} alt="STRATEX HABITAT™" className="h-8 sm:h-9 w-auto object-contain select-none" draggable="false" />
+      <img src={LOGO_FULL} alt="STRATEX HABITAT™" className="h-7 sm:h-8 lg:h-9 w-auto object-contain select-none" draggable="false" />
     </div>
   );
 }

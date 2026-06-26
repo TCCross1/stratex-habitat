@@ -22,10 +22,9 @@ export default function TopNav({ onMenu }) {
       <button className="md:hidden rail-btn !w-9 !h-9" onClick={onMenu} data-testid="mobile-menu-btn">
         <Menu size={20} />
       </button>
-      <div className="hidden sm:block"><Brand /></div>
-      <div className="sm:hidden"><Brand compact /></div>
+      <Brand />
 
-      <div className="flex-1 max-w-xl sm:mx-auto">
+      <div className="hidden sm:block flex-1 max-w-xl sm:mx-auto">
         <div className="relative">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#71717a]" />
           <input
@@ -40,6 +39,11 @@ export default function TopNav({ onMenu }) {
           </span>
         </div>
       </div>
+
+      <div className="flex-1 sm:hidden" />
+      <button className="sm:hidden rail-btn !w-9 !h-9" data-testid="mobile-search-btn">
+        <Search size={18} />
+      </button>
 
       <button className="relative rail-btn" data-testid="notifications-btn">
         <Bell size={18} />
