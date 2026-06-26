@@ -1,7 +1,9 @@
 import "@/App.css";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { useEffect } from "react";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { useAuth } from "@/context/AuthContext";
+import { recordPath } from "@/lib/navHistory";
 import { Brand } from "@/components/Brand";
 import AppShell from "@/components/layout/AppShell";
 import Login from "@/pages/Login";
@@ -36,7 +38,10 @@ function Protected({ children }) {
 
 export default function App() {
   const { user } = useAuth();
+  const location = useLocation();
   const home = user?.role === "contractor" ? "/marketplace" : "/twin";
+
+  useEffect(() => { recordPath(location.pathname); }, [location.pathname]);
 
   return (
     <div className="App">
