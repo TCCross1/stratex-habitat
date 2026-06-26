@@ -4,6 +4,7 @@ import TopNav from "@/components/layout/TopNav";
 import IconRail from "@/components/layout/IconRail";
 import SectionNav from "@/components/layout/SectionNav";
 import MobileNav from "@/components/layout/MobileNav";
+import BackButton from "@/components/BackButton";
 import { AppDataProvider } from "@/context/AppDataContext";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 
@@ -21,6 +22,7 @@ export default function AppShell() {
           </main>
         </div>
         <MobileNav />
+        <BackButton />
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetContent side="left" className="p-0 w-[280px] bg-[#0a0a0b] border-[#27272a]">
             <SectionNav onNavigate={() => setMobileOpen(false)} />
