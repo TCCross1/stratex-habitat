@@ -713,6 +713,9 @@ async def scenario_request_quote(sid: str, body: DesignQuoteReq, user: dict = De
 from steward import steward_router
 api_router.include_router(steward_router)
 
+from projects import projects_router
+api_router.include_router(projects_router)
+
 app.include_router(api_router)
 app.add_middleware(CORSMiddleware, allow_credentials=True,
                    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
