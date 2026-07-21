@@ -710,6 +710,9 @@ async def scenario_request_quote(sid: str, body: DesignQuoteReq, user: dict = De
 # ---------------------------------------------------------------------------
 # App wiring
 # ---------------------------------------------------------------------------
+from steward import steward_router
+api_router.include_router(steward_router)
+
 app.include_router(api_router)
 app.add_middleware(CORSMiddleware, allow_credentials=True,
                    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
@@ -718,6 +721,7 @@ app.add_middleware(CORSMiddleware, allow_credentials=True,
 
 @app.on_event("startup")
 async def startup():
+    app.state.db = db
     await db.users.create_index("email", unique=True)
     try:
         init_storage()
