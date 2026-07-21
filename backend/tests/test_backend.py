@@ -204,7 +204,7 @@ class TestContractors:
         r = contractor_session.post(f"{api_url}/contractors",
                                     json={"company_name": "Horizon Roofing & Exteriors",
                                           "description": "TEST updated",
-                                          "trades": ["Roofing", "Insulation"]})
+                                          "trades": ["Roofing", "Insulation", "Renovation"]})
         assert r.status_code == 200, r.text
         assert r.json()["description"] == "TEST updated"
 
