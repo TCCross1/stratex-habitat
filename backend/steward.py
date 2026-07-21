@@ -86,7 +86,7 @@ ROOF_FIXTURE_STORE = {
 
 # Ensure Tenant Isolation and fetch property id dynamically
 async def resolve_property_id(db, email: str) -> str:
-    if not db:
+    if db is None:
         return "villa-horizon-uuid"
     prop = await db.properties.find_one({"owner_id": {"$exists": True}})
     if prop:
