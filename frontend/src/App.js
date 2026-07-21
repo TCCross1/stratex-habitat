@@ -21,6 +21,7 @@ import Documents from "@/pages/Documents";
 import Reports from "@/pages/Reports";
 import ModulePage from "@/pages/ModulePage";
 import DesignStudio from "@/pages/DesignStudio";
+import HomeSteward from "@/pages/HomeSteward";
 
 function Protected({ children }) {
   const { user } = useAuth();
@@ -51,6 +52,7 @@ export default function App() {
         <Route element={<Protected><AppShell /></Protected>}>
           <Route path="/" element={<Navigate to={home} replace />} />
           <Route path="/twin" element={<DigitalTwin />} />
+          <Route path="/steward" element={<HomeSteward />} />
           <Route path="/systems" element={<SystemsAssets />} />
           <Route path="/telemetry" element={<ModulePage kind="telemetry" />} />
           <Route path="/findings" element={<Findings />} />

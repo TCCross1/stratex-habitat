@@ -1,7 +1,7 @@
 import {
   Box, BarChart3, Ruler, FileText, DollarSign, Folder, Users, ShieldCheck,
   Settings, HelpCircle, Activity, Search, Wrench, Lightbulb, PenTool, GitBranch,
-  Store, FileBarChart, Star, ClipboardList, LayoutGrid,
+  Store, FileBarChart, Star, ClipboardList, LayoutGrid, Sparkles,
 } from "lucide-react";
 
 // Left section navigation (homeowner — mirrors reference image)
@@ -17,6 +17,7 @@ export const HOMEOWNER_NAV = [
   {
     group: "Intelligence",
     items: [
+      { to: "/steward", label: "Home Steward AI", icon: Sparkles },
       { to: "/findings", label: "Findings", icon: Search, badgeKey: "findings" },
       { to: "/maintenance", label: "Maintenance", icon: Wrench, badgeKey: "maintenance" },
       { to: "/insights", label: "Insights", icon: Lightbulb },
