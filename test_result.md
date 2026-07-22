@@ -239,17 +239,27 @@ frontend:
           agent: "testing"
           comment: "✅ COMPLETE UI REGRESSION PASSED (9/9 verification items): (1) Page loads without crash, title 'Habitat Home Steward™' visible. (2) Ask flow: 'Do I need a new roof?' triggers structured 4-level answer (Direct Answer, Why This Matters, Supporting Information, Trace/References). (3) Recommendation renders with primary action 'Schedule a focused roof inspection' and secondary progressive disclosure options. (4) Confirm action 'Explore Roof Replacement' succeeds, advances through confirmation gate to Design Studio. (5) Estimate renders with Austin local cost range ($26,000-$38,000 for DECRA Standing Seam), breakdown (materials/labor/permits/contingency), material selection updates estimate correctly. (6) Investment scenarios A/B/C render with cost text and maintenance implications. (7) Build Ready: readiness score 65 displays, checklist shows 'Existing Deck & Underlayment Condition' flagged as MISSING with 'BLOCKS PUB' indicator. (8) Contractor Package Preview renders with 'Redact personal contact details' toggle (enabled by default), shared documents list shows ONLY drone inspection doc (doc_02 correctly filtered by backend), NO homeowner PII visible in contractor package content (no last name, no email, no phone, no exact address - redaction working correctly). (9) Publish succeeds: 'Project Opportunity Published!' confirmation displays with Correlation ID and 'ACTIVE (Redacted)' status. All wizard steps advance correctly, no console errors, no critical network failures. H-013 Batch 1 security changes fully functional in UI."
 
+  - task: "H-013 Batch 2 regression — Home Steward UI (/steward) still works after Passport projection + Build-Ready policy backend changes"
+    implemented: true
+    working: true
+    file: "frontend/src/pages/HomeSteward.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ H-013 BATCH 2 UI REGRESSION COMPLETE (9/9 items PASS): Full end-to-end wizard tested with new backend responses. (1) Page loads, title 'Habitat Home Steward' visible, property context renders (Villa Horizon/Austin). (2) Ask 'Do I need a new roof?' renders structured 4-level answer (Level 1 Direct Answer, Level 2 Why This Matters, Level 3 Supporting Information, Level 4 Trace). (3) Recommendation renders with PRIMARY ACTION and Secondary Options (Progressive Disclosure). (4) Confirm 'Explore Roof Replacement' advances through confirmation gate to Design Studio. (5) Estimate renders with Austin local cost range, breakdown (materials/labor), material change to DECRA Standing Seam updates estimate correctly. (6) Investment scenarios A/B/C render with cost text and maintenance implications. (7) Build Ready: readiness score 65 displays, 'Existing Deck & Underlayment Condition' item visible with MISSING status and BLOCKS PUB indicator. (8) Contractor Package Preview renders: redact toggle present and enabled, shared documents section shows ONLY drone inspection doc (doc_01), backend redaction verified via API - NO PII in contractor package response (last_name/email/phone all REDACTED, only property name 'Villa Horizon' visible). Note: 'Alex Morgan' detected in page is from logged-in user profile header (top-right), NOT from contractor package content - FALSE POSITIVE, redaction working correctly. (9) Publish succeeds: 'Project Opportunity Published!' confirmation with Correlation ID and 'ACTIVE (Redacted)' status. NO console errors (only expected 401 on /auth/me). NO critical network failures (only CDN rum requests). Backend changes (Passport projection _projection envelope + Build-Ready policy-driven readiness) are fully backward-compatible with existing UI. All wizard steps advance correctly."
+
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 3
+  test_sequence: 4
   run_ui: false
 
 test_plan:
   current_focus:
-    - "H-013 Batch 2 Phases 6-10 Persistent Steward workflow + publication gate + idempotency + audit + indexes"
-    - "H-013 Batch 2 #5 Versioned read-only Passport projection boundary (adapter + provider modes)"
-    - "H-013 Batch 2 Phase 5 Build-Ready blocker policy (HARD/CONDITIONAL/WARNING/INFORMATIONAL)"
+    - "H-013 Batch 2 regression — Home Steward UI (/steward) still works after Passport projection + Build-Ready policy backend changes"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -384,3 +394,22 @@ agent_communication:
         - POST /api/steward/ask: valid roof question returns 200 with all levels, non-roof question returns 400
         
         Backend is production-ready for H-013 Batch 2 deployment. All Passport projection boundary, Build-Ready blocker policy, persistent workflow lifecycle with publication gates, idempotency, security isolation, and regression tests passed.
+    
+    - agent: "testing"
+      message: >
+        ✅ H-013 BATCH 2 UI REGRESSION COMPLETE - ALL 9 ITEMS VERIFIED:
+        
+        Tested full Home Steward wizard end-to-end (alex@stratexhabitat.com) after Batch 2 backend changes:
+        1. ✅ Page loads, title visible, property context renders (Villa Horizon/Austin)
+        2. ✅ Ask "Do I need a new roof?" renders 4-level structured answer
+        3. ✅ Recommendation with primary + secondary options renders
+        4. ✅ Confirm action advances to Design Studio
+        5. ✅ Estimate with cost range/breakdown renders, material change (DECRA Standing Seam) updates estimate
+        6. ✅ Investment scenarios A/B/C render
+        7. ✅ Build Ready: score 65, deck condition blocking item visible
+        8. ✅ Contractor Package Preview: redact toggle present, shared docs (doc_01 only), backend redaction verified - NO PII in API response
+        9. ✅ Publish succeeds with confirmation and Correlation ID
+        
+        NO console errors (only expected 401 on /auth/me). NO critical network failures.
+        Backend changes (Passport projection _projection envelope + Build-Ready policy) fully backward-compatible with UI.
+        All wizard steps advance correctly. H-013 Batch 2 UI regression PASSED.
