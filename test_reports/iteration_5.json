@@ -1,0 +1,43 @@
+{
+  "summary": "H-014A.1 frontend-only regression after backend security hardening (QC-1 property non-disclosure, QC-3 deterministic 2-frame coordinate set). Logged in as homeowner via demo-homeowner quick button, navigated via left-nav to /reality-foundation and /steward (no hard reload). All required data-testid assertions passed. QC-3 verified from live bootstrap network response: coordinate_frames array contains EXACTLY 2 fixture frames (PROPERTY_FRAME id 'rf-frame-property-h0…', ROOM_FRAME id 'rf-frame-room-h014a…') — no dozens of accumulated dev/test frames. Artifact storage row shows only masked token '<governed-object-store-reference>'; no http/https/fixture://s3://gs:// leak in the storage cell. Read-only confirmed: 0 buttons inside reality-foundation-page. Home Steward regression: /steward loads with Villa Horizon property context, no error banners, body length 1450 chars.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "RealityStudioFoundation.js:107 only extracts the PROPERTY_FRAME and renders a single 'Coordinate frame' panel. The QC-3 fix guarantees exactly 2 frames server-side (PROPERTY_FRAME + ROOM_FRAME), but the UI silently drops the ROOM_FRAME. Consider rendering both frames (or a count chip) so the fix is visually observable to the homeowner and to future testers without inspecting the network tab.",
+    "RealityStudioFoundation.js:136 renders `${dims.length} m` from the raw API value (renders '6.1 m' vs the fixture spec's '6.10 m'). Cosmetic — numeric equality holds. Consider Number(dims.length).toFixed(2) for parity with the width label formatting."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped per request)", "frontend": "100%"},
+  "test_credentials": "Homeowner: alex@stratexhabitat.com / Demo123! (via [data-testid=demo-homeowner] quick-login).",
+  "seed_data_creation": "None; used deterministic dev fixture bootstrapped by POST /reality/v1/development/reference-room/bootstrap.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "SPA nav only — do NOT hard-reload URLs (drops in-memory auth). Login: click [data-testid=demo-homeowner]. Reality page: click left-nav text 'Reality Studio (Dev)' → /reality-foundation. Key testids: reality-foundation-page, reality-foundation-fixture-warning, reality-foundation-dim-width ('4.88 m'), reality-foundation-dim-length ('6.1 m' — numeric 6.10), reality-foundation-dimensions panel contains '29.768 m²', reality-foundation-entity-count ('12'), reality-foundation-model-state ('DRAFT_CANDIDATE'), reality-foundation-coordinate-frames panel contains 'PROPERTY_FRAME', reality-foundation-artifact storage row literal '<governed-object-store-reference>'. QC-3 counted 2 frames via network capture of the bootstrap response. Steward regression at /steward via text 'Home Steward AI' — shows Villa Horizon context, no errors.",
+  "verified_assertions": {
+    "login_via_demo_homeowner": true,
+    "spa_nav_to_reality_foundation": true,
+    "reality_page_read_only_zero_buttons": true,
+    "fixture_warning_visible": true,
+    "dim_width_4_88_m": true,
+    "dim_length_6_10_m_numeric": true,
+    "floor_area_29_768_m2": true,
+    "entity_count_12": true,
+    "model_state_DRAFT_CANDIDATE": true,
+    "coordinate_frame_PROPERTY_FRAME_visible": true,
+    "qc3_coordinate_frames_exactly_2_from_bootstrap_api": true,
+    "qc3_frame_types_PROPERTY_FRAME_and_ROOM_FRAME": true,
+    "artifact_storage_masked_token": true,
+    "artifact_storage_no_url_or_fixture_leak_in_ui": true,
+    "steward_loads_with_villa_horizon_context": true,
+    "steward_no_error_banners": true
+  },
+  "informational_notes": [
+    "The full bootstrap JSON payload contains the substring 'fixture://' in an internal field (not the storage_object_reference). The visible UI storage cell correctly renders '<governed-object-store-reference>' with no raw path/URL/scheme. Non-issue for QC-1 UI non-disclosure, but flagged here for completeness."
+  ]
+}

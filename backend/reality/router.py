@@ -7,7 +7,7 @@ from steward import get_db, get_steward_user  # reuse tested auth + DB DI (no cy
 from fixture_provider import FixtureDisabledError
 
 from . import enums
-from .authz import authorize_property, structured, REF_PROPERTY_ID
+from .authz import authorize_property, structured, not_found_nondisclosure, REF_PROPERTY_ID
 from . import coordinate_service, spatial_service, scan_session_service
 from . import artifact_service, model_version_service, fixtures
 from .schemas import (CoordinateFrameCreate, SpatialEntityCreate, ScanSessionCreate,
@@ -56,7 +56,7 @@ async def list_frames(property_id: str, user=Depends(get_steward_user), db=Depen
 async def get_frame(coordinate_frame_id: str, user=Depends(get_steward_user), db=Depends(get_db)):
     frame = await db[enums.C_FRAMES].find_one({"id": coordinate_frame_id}, {"_id": 0})
     if not frame:
-        raise HTTPException(status_code=404, detail="Coordinate frame not found")
+        raise not_found_nondisclosure()
     await authorize_property(db, user, frame["property_id"])
     return frame
 
@@ -74,7 +74,7 @@ async def create_scan(property_id: str, body: ScanSessionCreate,
 async def get_scan(scan_session_id: str, user=Depends(get_steward_user), db=Depends(get_db)):
     s = await db[enums.C_SCANS].find_one({"id": scan_session_id}, {"_id": 0})
     if not s:
-        raise HTTPException(status_code=404, detail="Scan session not found")
+        raise not_found_nondisclosure()
     await authorize_property(db, user, s["property_id"])
     return s
 
@@ -84,7 +84,7 @@ async def transition_scan(scan_session_id: str, body: ScanTransition,
                           user=Depends(get_steward_user), db=Depends(get_db)):
     s = await db[enums.C_SCANS].find_one({"id": scan_session_id}, {"_id": 0})
     if not s:
-        raise HTTPException(status_code=404, detail="Scan session not found")
+        raise not_found_nondisclosure()
     await authorize_property(db, user, s["property_id"])
     return await scan_session_service.transition_session(
         db, user, session_id=scan_session_id, to_state=body.to_state,
@@ -97,7 +97,7 @@ async def create_artifact(scan_session_id: str, body: ArtifactManifestCreate,
                           user=Depends(get_steward_user), db=Depends(get_db)):
     s = await db[enums.C_SCANS].find_one({"id": scan_session_id}, {"_id": 0})
     if not s:
-        raise HTTPException(status_code=404, detail="Scan session not found")
+        raise not_found_nondisclosure()
     await authorize_property(db, user, s["property_id"])
     return await artifact_service.create_manifest(db, user, scan_session_id=scan_session_id,
                                                   body=body.model_dump(), correlation_id=_corr())
@@ -107,7 +107,7 @@ async def create_artifact(scan_session_id: str, body: ArtifactManifestCreate,
 async def get_artifact(artifact_id: str, user=Depends(get_steward_user), db=Depends(get_db)):
     m = await db[enums.C_ARTIFACTS].find_one({"id": artifact_id}, {"_id": 0})
     if not m:
-        raise HTTPException(status_code=404, detail="Artifact manifest not found")
+        raise not_found_nondisclosure()
     await authorize_property(db, user, m["property_id"])
     return artifact_service.public_view(m)
 
@@ -125,7 +125,7 @@ async def create_existing(property_id: str, body: ExistingModelCreate,
 async def get_existing(existing_model_version_id: str, user=Depends(get_steward_user), db=Depends(get_db)):
     m = await db[enums.C_EXISTING].find_one({"id": existing_model_version_id}, {"_id": 0})
     if not m:
-        raise HTTPException(status_code=404, detail="Existing model version not found")
+        raise not_found_nondisclosure()
     await authorize_property(db, user, m["property_id"])
     return m
 
@@ -135,7 +135,7 @@ async def transition_existing(existing_model_version_id: str, body: ExistingMode
                               user=Depends(get_steward_user), db=Depends(get_db)):
     m = await db[enums.C_EXISTING].find_one({"id": existing_model_version_id}, {"_id": 0})
     if not m:
-        raise HTTPException(status_code=404, detail="Existing model version not found")
+        raise not_found_nondisclosure()
     await authorize_property(db, user, m["property_id"])
     return await model_version_service.transition_existing_model(
         db, user, model_id=existing_model_version_id, to_state=body.to_state,
@@ -155,7 +155,7 @@ async def create_design(property_id: str, body: DesignModelCreate,
 async def get_design(design_model_version_id: str, user=Depends(get_steward_user), db=Depends(get_db)):
     m = await db[enums.C_DESIGN].find_one({"id": design_model_version_id}, {"_id": 0})
     if not m:
-        raise HTTPException(status_code=404, detail="Design model version not found")
+        raise not_found_nondisclosure()
     await authorize_property(db, user, m["property_id"])
     return m
 

@@ -20,11 +20,22 @@ def server_tenant_id(_client_value=None) -> str:
     return enums.TENANT_ID
 
 
+def not_found_nondisclosure():
+    """Uniform 404 for BOTH 'does not exist' and 'exists but not authorized' on real
+    (secret-existence) resources, so an actor cannot use the status code or message
+    as an existence/ownership oracle. Identical error_code + message in every case.
+    (The reference-room synthetic property id is public and intentionally keeps a
+    403 access-denied contract.)"""
+    return structured(404, "NOT_FOUND", "Resource not found or not accessible.")
+
+
 async def authorize_property(db, user: dict, property_id: str) -> dict:
     """Enforce tenant + property authorization.
 
-    Returns a minimal property context. 404 when the property does not exist
-    (non-disclosure); 403 when the authenticated user is not permitted.
+    Reference-room synthetic property (public id): 403 when not permitted.
+    Real properties: a uniform 404 non-disclosure for BOTH nonexistent and
+    existing-but-unauthorized, preventing existence/ownership enumeration.
+    Authorization is never weakened — denial simply does not disclose existence.
     """
     role = user.get("role")
     # Reference-room synthetic property: demo homeowner + privileged roles only.
@@ -37,17 +48,17 @@ async def authorize_property(db, user: dict, property_id: str) -> dict:
     if db is not None:
         prop = await db.properties.find_one({"id": property_id}, {"_id": 0})
     if not prop:
-        raise HTTPException(status_code=404, detail="Property not found")
+        raise not_found_nondisclosure()
 
     if role in enums.PRIVILEGED_ROLES:
         return prop
+    # Contractors have no per-job grant model in H-014A, and non-owners are not
+    # authorized; both are denied WITHOUT disclosing that the property exists.
     if role == "contractor":
-        # No explicit per-job contractor grant model exists in H-014A -> deny.
-        raise structured(403, "PROPERTY_ACCESS_DENIED",
-                         "Contractor access requires an explicit authorization (not available in H-014A).")
+        raise not_found_nondisclosure()
     if prop.get("owner_id") == user.get("id"):
         return prop
-    raise structured(403, "PROPERTY_ACCESS_DENIED", "Not authorized for this property.")
+    raise not_found_nondisclosure()
 
 
 def assert_truth_promotion_allowed(truth_classification: str, source_classification: str):

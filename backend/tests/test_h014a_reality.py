@@ -133,15 +133,22 @@ class TestArtifactChecksum:
 
 
 class TestStorageReferenceValidation:
-    """Focused regression: supplied governed storage references (Defect 2)."""
+    """Focused regression: supplied governed storage references (QC-2 prefix-bound)."""
     def test_valid_governed_key(self):
-        arts.validate_storage_reference("stratex-habitat/reality/obj-123")  # no raise
+        arts.validate_storage_reference(
+            f"tenant/{enums.TENANT_ID}/property/{REF}/reality/obj-123",
+            tenant_id=enums.TENANT_ID, property_id=REF)  # no raise
 
-    @pytest.mark.parametrize("bad", ["", "   ", "https://x/y", "//host/x", "/abs/path",
-                                     "key with space", "a/../b", "k?sig=1"])
+    @pytest.mark.parametrize("bad", [
+        "", "   ", "https://x/y", "//host/x", "/abs/path", "key with space",
+        "a/../b", "k?sig=1",
+        "reality/obj-1",                                                   # missing prefix
+        "tenant/other-tenant/property/ref-property-h014a/reality/x",       # foreign tenant
+        "tenant/stratex-habitat/property/other-prop/reality/x",           # foreign property
+    ])
     def test_invalid_refs_rejected(self, bad):
         with pytest.raises(HTTPException) as e:
-            arts.validate_storage_reference(bad)
+            arts.validate_storage_reference(bad, tenant_id=enums.TENANT_ID, property_id=REF)
         assert e.value.detail["error_code"] == "INVALID_STORAGE_REFERENCE"
 
 
@@ -309,7 +316,7 @@ class TestArtifactHTTP:
 
     def test_storage_ref_valid_supplied_preserved(self, homeowner_session, api_url, db):
         sid = self._scan(homeowner_session, api_url)
-        supplied = f"{enums.TENANT_ID}/reality/custom-object-key"
+        supplied = f"tenant/{enums.TENANT_ID}/property/{REF}/reality/custom-object-key"
         r = homeowner_session.post(_api(api_url, f"/scan-sessions/{sid}/artifacts"),
                                    json={"artifact_type": "POINT_CLOUD", "checksum_sha256": "a" * 64,
                                          "storage_object_reference": supplied}, timeout=30)
@@ -605,3 +612,192 @@ class TestModelVersionDefaultsHTTP:
         b = r.json()
         assert b["proposed_entities"] == []
         assert b["deltas"] == {"added": [], "modified": [], "removed": []}
+
+
+# ================= H-014A.1 QC-2: STORAGE-REFERENCE ATTACK MATRIX =================
+class TestStorageReferenceAttackMatrix:
+    def _art(self, s, api_url, extra):
+        sid = s.post(_api(api_url, f"/properties/{REF}/scan-sessions"),
+                     json={"capture_type": "INTERIOR_LIDAR"}, timeout=30).json()["id"]
+        p = {"artifact_type": "POINT_CLOUD", "checksum_sha256": "a" * 64}
+        p.update(extra)
+        return s.post(_api(api_url, f"/scan-sessions/{sid}/artifacts"), json=p, timeout=30)
+
+    def test_omitted_server_generated(self, homeowner_session, api_url, db):
+        r = self._art(homeowner_session, api_url, {})
+        assert r.status_code == 201, r.text
+        aid = r.json()["artifact_id"]
+        doc = db[enums.C_ARTIFACTS].find_one({"id": aid})
+        assert doc["storage_object_reference"] == f"tenant/{enums.TENANT_ID}/property/{REF}/reality/{aid}"
+
+    def test_null_server_generated(self, homeowner_session, api_url, db):
+        r = self._art(homeowner_session, api_url, {"storage_object_reference": None})
+        assert r.status_code == 201, r.text
+        doc = db[enums.C_ARTIFACTS].find_one({"id": r.json()["artifact_id"]})
+        assert doc["storage_object_reference"].startswith(f"tenant/{enums.TENANT_ID}/property/{REF}/reality/")
+
+    def test_authorized_exact_prefix_accepted(self, homeowner_session, api_url, db):
+        ref = f"tenant/{enums.TENANT_ID}/property/{REF}/reality/custom-key_1.bin"
+        r = self._art(homeowner_session, api_url, {"storage_object_reference": ref})
+        assert r.status_code == 201, r.text
+        assert db[enums.C_ARTIFACTS].find_one({"id": r.json()["artifact_id"]})["storage_object_reference"] == ref
+
+    @pytest.mark.parametrize("ref", [
+        "tenant/victim-tenant/property/ref-property-h014a/reality/x",       # foreign tenant
+        "tenant/stratex-habitat/property/victim-prop/reality/x",            # foreign property
+        "tenant/attacker/property/x/tenant/stratex-habitat/property/ref-property-h014a/reality/y",  # embedded later
+        "tenant/stratex-habitat/property/ref-property-h014a/reality/../../etc/passwd",  # traversal suffix
+        "https://evil.example.com/x",                                       # url
+        "https://evil/x?sig=abc",                                          # signed url
+        "/abs/tenant/stratex-habitat/property/ref-property-h014a/reality/x",  # absolute
+        "tenant/stratex-habitat/property/ref-property-h014a/reality//x",    # repeated slash
+        "tenant/stratex-habitat/property/ref-property-h014a/reality/%2e%2e/x",  # percent-encoded
+        "tenant/stratex-habitat/property/ref-property-h014a/reality/a\\b",  # backslash
+        "",                                                                 # blank
+        "   ",                                                              # whitespace
+        "TENANT/stratex-habitat/property/ref-property-h014a/reality/x",     # case trick
+    ])
+    def test_unauthorized_refs_rejected(self, homeowner_session, api_url, ref):
+        r = self._art(homeowner_session, api_url, {"storage_object_reference": ref})
+        assert r.status_code == 422, (ref, r.text)
+        assert r.json()["detail"]["error_code"] == "INVALID_STORAGE_REFERENCE"
+
+    def test_public_masked_and_audit_clean(self, homeowner_session, api_url, db):
+        r = self._art(homeowner_session, api_url, {})
+        aid = r.json()["artifact_id"]
+        assert r.json()["storage_object_reference"] == "<governed-object-store-reference>"
+        internal = db[enums.C_ARTIFACTS].find_one({"id": aid})["storage_object_reference"]
+        assert internal not in _json.dumps(r.json())
+        ev = db.audit_events.find_one({"domain": "reality", "event_type": "REALITY_ARTIFACT_MANIFEST_CREATED",
+                                       "entity_references.artifact_id": aid})
+        assert ev is not None
+        assert ev["tenant_id"] == enums.TENANT_ID and ev["property_id"] == REF
+        assert internal not in _json.dumps(ev, default=str)
+
+
+# ================= H-014A.1 QC-1: UNIFORM PROPERTY NON-DISCLOSURE =================
+def _foreign_owner():
+    return f"not-alex-{uuid.uuid4()}"
+
+
+class TestPropertyNonDisclosure:
+    def test_owner_accesses_own_property(self, homeowner_session, api_url, db):
+        alex = db.users.find_one({"email": "alex@stratexhabitat.com"})
+        pid = f"qc1-own-{uuid.uuid4()}"
+        db.properties.insert_one({"id": pid, "owner_id": alex["id"], "name": "qc1-own"})
+        try:
+            r = homeowner_session.get(_api(api_url, f"/properties/{pid}/spatial-graph"), timeout=30)
+            assert r.status_code == 200, r.text
+        finally:
+            db.properties.delete_one({"id": pid})
+
+    def test_unauthorized_existing_and_nonexistent_identical(self, homeowner_session, api_url, db):
+        other = f"qc1-other-{uuid.uuid4()}"
+        db.properties.insert_one({"id": other, "owner_id": _foreign_owner(), "name": "qc1-other"})
+        try:
+            r_exists = homeowner_session.get(_api(api_url, f"/properties/{other}/spatial-graph"), timeout=30)
+            r_missing = homeowner_session.get(_api(api_url, f"/properties/nope-{uuid.uuid4()}/spatial-graph"), timeout=30)
+        finally:
+            db.properties.delete_one({"id": other})
+        assert r_exists.status_code == 404 and r_missing.status_code == 404
+        assert r_exists.json() == r_missing.json()  # identical body: no existence/ownership oracle
+
+    def test_subordinate_object_nondisclosing(self, homeowner_session, api_url, db):
+        other = f"qc1-prop-{uuid.uuid4()}"
+        db.properties.insert_one({"id": other, "owner_id": _foreign_owner(), "name": "x"})
+        art = f"qc1-art-{uuid.uuid4()}"
+        db[enums.C_ARTIFACTS].insert_one({"id": art, "artifact_id": art, "tenant_id": enums.TENANT_ID,
+                                          "property_id": other, "artifact_type": "POINT_CLOUD"})
+        try:
+            r_exists = homeowner_session.get(_api(api_url, f"/artifacts/{art}"), timeout=30)
+            r_missing = homeowner_session.get(_api(api_url, f"/artifacts/nope-{uuid.uuid4()}"), timeout=30)
+        finally:
+            db[enums.C_ARTIFACTS].delete_one({"id": art}); db.properties.delete_one({"id": other})
+        assert r_exists.status_code == 404 and r_missing.status_code == 404
+        assert r_exists.json() == r_missing.json()
+
+    def test_unauthenticated_401(self, api_url):
+        import requests
+        r = requests.get(_api(api_url, "/properties/anything/spatial-graph"), timeout=30)
+        assert r.status_code == 401
+
+    def test_reference_fixture_access_ok(self, homeowner_session, api_url):
+        assert homeowner_session.get(_api(api_url, "/development/reference-room"), timeout=30).status_code == 200
+
+    def test_contractor_denied_on_reference(self, contractor_session, api_url):
+        # reference property id is public → 403 access-denied contract preserved
+        assert contractor_session.get(_api(api_url, "/development/reference-room"), timeout=30).status_code == 403
+
+
+# ================= H-014A.1 QC-3: DETERMINISTIC REFERENCE-ROOM VIEW =================
+class TestReferenceRoomViewIsolation:
+    def test_view_ignores_unrelated_same_property_records(self, homeowner_session, api_url, db):
+        homeowner_session.post(_api(api_url, "/development/reference-room/bootstrap"), timeout=30)
+        injected = []
+        for _ in range(3):  # unrelated records sharing REF property_id + imitating classification
+            fid = f"qc3-frame-{uuid.uuid4()}"
+            db[enums.C_FRAMES].insert_one({"id": fid, "property_id": REF, "tenant_id": enums.TENANT_ID,
+                                           "frame_type": "ROOM_FRAME",
+                                           "source_classification": "DETERMINISTIC_REFERENCE_FIXTURE"})
+            injected.append(fid)
+        try:
+            v1 = homeowner_session.get(_api(api_url, "/development/reference-room"), timeout=30).json()
+            v2 = homeowner_session.get(_api(api_url, "/development/reference-room"), timeout=30).json()
+        finally:
+            db[enums.C_FRAMES].delete_many({"id": {"$in": injected}})
+        assert len(v1["coordinate_frames"]) == 2, [f.get("frame_type") for f in v1["coordinate_frames"]]
+        assert v1["entity_count"] == 12
+        for fid in injected:
+            assert fid not in [f["id"] for f in v1["coordinate_frames"]]
+        # deterministic ordering/content across repeated reads
+        assert [f["id"] for f in v1["coordinate_frames"]] == [f["id"] for f in v2["coordinate_frames"]]
+        assert [e["id"] for e in v1["entities"]] == [e["id"] for e in v2["entities"]]
+        assert v1["dimensions_m"] == v2["dimensions_m"]
+
+
+# ================= H-014A.1 QC-4: TRUTH-PROMOTION REJECTION AUDIT =================
+class TestTruthPromotionRejectionAudit:
+    def test_rejected_and_audited_exactly_once(self, homeowner_session, api_url, db):
+        # unique (entity_type, truth) combo → count is immune to concurrent tests
+        flt = {"event_type": "REALITY_TRUTH_PROMOTION_REJECTED",
+               "entity_references.entity_type": "EQUIPMENT",
+               "details.attempted_truth_classification": "COMPLETED_AS_BUILT"}
+        before = db.audit_events.count_documents(flt)
+        r = homeowner_session.post(_api(api_url, f"/properties/{REF}/spatial-entities"),
+                                   json={"entity_type": "EQUIPMENT",
+                                         "truth_classification": "COMPLETED_AS_BUILT"}, timeout=30)
+        assert r.status_code == 403
+        assert r.json()["detail"]["error_code"] == "TRUTH_PROMOTION_FORBIDDEN"
+        import time; time.sleep(0.4)
+        assert db.audit_events.count_documents(flt) == before + 1  # exactly one
+        ev = db.audit_events.find_one(flt, sort=[("timestamp", -1)])
+        assert ev["domain"] == "reality"
+        assert ev["tenant_id"] == enums.TENANT_ID
+        assert ev["property_id"] == REF
+        assert ev["actor"]["email"] == "alex@stratexhabitat.com"
+        blob = _json.dumps(ev, default=str).lower()
+        for bad in ["password", "token", "authorization", "signed_url", "secret", '"data"', '"bytes"']:
+            assert bad not in blob
+
+    def test_no_entity_persisted_on_rejection(self, homeowner_session, api_url, db):
+        before = db[enums.C_SPATIAL].count_documents({"property_id": REF})
+        homeowner_session.post(_api(api_url, f"/properties/{REF}/spatial-entities"),
+                               json={"entity_type": "WALL",
+                                     "truth_classification": "APPROVED_FOR_BUILD_PACKAGE"}, timeout=30)
+        assert db[enums.C_SPATIAL].count_documents({"property_id": REF}) == before  # no write on denial
+
+
+class TestTruthPromotionAuditFailureUnit:
+    def test_denial_survives_audit_persistence_failure(self, monkeypatch):
+        import asyncio
+        async def boom(*a, **k):
+            raise RuntimeError("audit backend down")
+        monkeypatch.setattr(ss, "write_event", boom)
+        with pytest.raises(HTTPException) as e:
+            asyncio.run(ss.create_entity(
+                None, {"id": "u", "email": "x", "role": "homeowner"},
+                property_id=REF,
+                body={"entity_type": "WALL", "truth_classification": "VERIFIED_EXISTING"},
+                correlation_id="c"))
+        assert e.value.status_code == 403
+        assert e.value.detail["error_code"] == "TRUTH_PROMOTION_FORBIDDEN"

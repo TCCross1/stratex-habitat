@@ -2,6 +2,8 @@
 import uuid
 from datetime import datetime, timezone
 
+from fastapi import HTTPException
+
 from . import enums
 from .authz import structured, assert_truth_promotion_allowed, validate_classifications
 from .audit_service import write_event
@@ -132,8 +134,22 @@ async def create_entity(db, user, *, property_id, body: dict, correlation_id):
     tenant_id = enums.TENANT_ID
     truth = body.get("truth_classification", enums.MEASURED_EXISTING)
     source = body.get("source_classification", "HOMEOWNER_INPUT")
-    # Fail closed on restricted truth promotion by Habitat actors.
-    assert_truth_promotion_allowed(truth, source)
+    # Fail closed on restricted truth promotion by Habitat actors — and audit the
+    # rejection exactly once. Audit is best-effort: a persistence failure must NOT
+    # convert the forbidden operation into a success (the denial still propagates).
+    try:
+        assert_truth_promotion_allowed(truth, source)
+    except HTTPException:
+        try:
+            await write_event(db, enums.A_TRUTH_PROMOTION_REJECTED, user, property_id=property_id,
+                              correlation_id=correlation_id,
+                              entity_refs={"entity_type": body.get("entity_type")},
+                              extra={"attempted_truth_classification": truth,
+                                     "attempted_source_classification": source,
+                                     "operation": "create_spatial_entity"})
+        except Exception:
+            pass
+        raise
 
     entity_id = f"rf-ent-{uuid.uuid4()}"
     rec = build_entity_record(

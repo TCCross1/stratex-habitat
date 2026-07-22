@@ -8,18 +8,25 @@ import uuid
 from datetime import datetime, timezone
 
 from . import enums
-from .authz import structured, server_tenant_id
+from .authz import structured, server_tenant_id, not_found_nondisclosure
 from .audit_service import write_event
 
 _SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
+_SAFE_KEY_SEG_RE = re.compile(r"^[A-Za-z0-9._-]+$")  # allowed object-key path segment charset
 DEFAULT_CONTENT_TYPE = "application/octet-stream"
+
+
+def authorized_storage_prefix(tenant_id: str, property_id: str) -> str:
+    """The ONLY object-store key prefix a request may write under — bound to the
+    authenticated tenant and the authorized property (server-controlled context)."""
+    return f"tenant/{tenant_id}/property/{property_id}/reality/"
 
 
 def governed_storage_reference(tenant_id: str, property_id: str, artifact_id: str) -> str:
     """Ownership-safe default object-store key derived ONLY from the authenticated
     tenant, the authorized property, and the server-generated artifact id. Never a
     URL, credential, signed URL, public path, or client-supplied override."""
-    return f"tenant/{tenant_id}/property/{property_id}/reality/{artifact_id}"
+    return f"{authorized_storage_prefix(tenant_id, property_id)}{artifact_id}"
 
 
 def _now_iso() -> str:
@@ -31,19 +38,35 @@ def validate_checksum(value: str) -> None:
         raise structured(422, "INVALID_CHECKSUM", "checksum_sha256 must be 64 lowercase hex chars.")
 
 
-def validate_storage_reference(value: str) -> None:
-    """A client-supplied governed storage reference must be a safe, non-empty,
-    tenant-scoped storage key — never blank, a URL, an absolute path, a signed
-    reference, or a path-traversal string. Prevents silent fallback on bad input
-    and blocks leaking unrestricted object-storage locations."""
+def validate_storage_reference(value, *, tenant_id: str, property_id: str) -> None:
+    """A client-supplied storage_object_reference is accepted ONLY if it is a safe key
+    strictly under the server-authorized `tenant/{tenant}/property/{property}/reality/`
+    prefix. Rejects blank/whitespace, URLs, signed URLs, absolute paths, backslashes,
+    percent/other encodings, fragments, control chars, repeated slashes, dot segments,
+    and any foreign-tenant or foreign-property prefix. Client input never controls final
+    storage ownership; a mismatch is rejected (never silently rewritten to an authorized one)."""
     if not isinstance(value, str) or not value.strip():
         raise structured(422, "INVALID_STORAGE_REFERENCE",
                          "storage_object_reference must be a non-empty governed reference.")
-    v = value.strip()
-    if "://" in v or v.startswith("/") or "?" in v or ".." in v or any(ch.isspace() for ch in v):
+    # Reject dangerous constructs before any structural interpretation.
+    if (value != value.strip() or "://" in value or value.startswith("/")
+            or "?" in value or "#" in value or "\\" in value or "%" in value
+            or any(ord(ch) < 0x20 for ch in value) or any(ch.isspace() for ch in value)):
         raise structured(422, "INVALID_STORAGE_REFERENCE",
-                         "storage_object_reference must be a governed storage key, "
-                         "not a URL, absolute path, or signed reference.")
+                         "storage_object_reference must be a plain governed storage key "
+                         "(no URL, absolute path, encoding, fragment, or whitespace).")
+    # Must match the exact server-derived authorized prefix, segment by segment.
+    required = ["tenant", tenant_id, "property", property_id, "reality"]
+    segs = value.split("/")
+    if len(segs) <= len(required) or segs[:len(required)] != required:
+        raise structured(422, "INVALID_STORAGE_REFERENCE",
+                         "storage_object_reference must be within the authorized "
+                         "tenant/property/reality prefix for this request.")
+    # Remaining object-key segments must be safe, non-empty, and non-relative.
+    for seg in segs[len(required):]:
+        if seg in ("", ".", "..") or not _SAFE_KEY_SEG_RE.match(seg):
+            raise structured(422, "INVALID_STORAGE_REFERENCE",
+                             "storage_object_reference contains an empty, relative, or unsafe segment.")
 
 
 def build_manifest_record(*, tenant_id, property_id, artifact_type, storage_object_reference,
@@ -107,8 +130,7 @@ def public_view(manifest: dict) -> dict:
 async def create_manifest(db, user, *, scan_session_id, body: dict, correlation_id):
     session = await db[enums.C_SCANS].find_one({"id": scan_session_id}, {"_id": 0})
     if not session:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail="Scan session not found")
+        raise not_found_nondisclosure()
     # Tenant is ALWAYS server-derived; property is the AUTHORIZED scan-session property.
     # Neither is taken from the client body (client overrides are ignored/rejected).
     tenant_id = server_tenant_id()
@@ -130,7 +152,7 @@ async def create_manifest(db, user, *, scan_session_id, body: dict, correlation_
     if storage_object_reference is None:
         storage_object_reference = governed_storage_reference(tenant_id, property_id, artifact_id)
     else:
-        validate_storage_reference(storage_object_reference)
+        validate_storage_reference(storage_object_reference, tenant_id=tenant_id, property_id=property_id)
     content_type = body.get("content_type")
     if content_type is None:
         content_type = DEFAULT_CONTENT_TYPE

@@ -180,10 +180,23 @@ async def bootstrap(db, user):
 
 
 async def assemble_view(db):
-    """Read-only assembled reference-room view for the API/screen."""
+    """Read-only assembled reference-room view for the API/screen.
+
+    Assembled ONLY from the governed deterministic fixture record set (by fixed
+    fixture ids) — never a broad property_id listing — so unrelated dev/test writes
+    on the reference property cannot leak into or perturb the deterministic view.
+    """
     pid = REF_PROPERTY_ID
-    entities = [e async for e in db[enums.C_SPATIAL].find({"property_id": pid}, {"_id": 0})]
-    frames = [f async for f in db[enums.C_FRAMES].find({"property_id": pid}, {"_id": 0})]
+    spec = build_reference_records()
+    frame_ids = [f["id"] for f in spec["frames"]]
+    entity_ids = [e["id"] for e in spec["entities"]]
+    frames_by_id = {f["id"]: f async for f in
+                    db[enums.C_FRAMES].find({"id": {"$in": frame_ids}}, {"_id": 0})}
+    entities_by_id = {e["id"]: e async for e in
+                      db[enums.C_SPATIAL].find({"id": {"$in": entity_ids}}, {"_id": 0})}
+    # Preserve the deterministic fixture ordering regardless of DB return order.
+    frames = [frames_by_id[i] for i in frame_ids if i in frames_by_id]
+    entities = [entities_by_id[i] for i in entity_ids if i in entities_by_id]
     artifact = await db[enums.C_ARTIFACTS].find_one({"id": ARTIFACT}, {"_id": 0})
     existing = await db[enums.C_EXISTING].find_one({"id": EXISTING_MODEL}, {"_id": 0})
     counts = {}
