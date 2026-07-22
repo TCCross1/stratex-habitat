@@ -555,11 +555,10 @@ def _build_opportunity(wf: dict, user: dict):
     return opp_id, opp
 
 
-@workflow_router.post("/{wf_id}/publish")
 async def create_prepared_workflow(db, user, *, property_id, design_project_ref,
                                    acknowledged_blockers=None, material=None,
                                    redaction_settings=None, readiness_overrides=None):
-    """Compatibility factory for the legacy publish wrapper.
+    """Compatibility factory for the legacy publish wrapper (NOT an HTTP route).
 
     Persists a workflow already at PACKAGE_PREVIEWED with server-computed refs so
     the legacy POST /steward/publish can route through the ONE governed

@@ -238,15 +238,23 @@ export default function HomeSteward() {
         timeline_preference: timelinePreference,
         budget_preference: budgetPreference,
         shared_document_ids: Object.keys(sharedDocs).filter(k => sharedDocs[k]),
-        remove_personal_info: removePersonalInfo
+        remove_personal_info: removePersonalInfo,
+        // Governed publication gate (H-013 Batch 2A): the homeowner's Build-Ready
+        // confirmation acknowledges the site-verification CONDITIONAL blocker(s).
+        acknowledged_blockers: overrideReadiness
+          ? (readinessData?.required_acknowledgment_ids || readinessData?.conditional_blocker_ids || [])
+          : []
       });
       setAuditLog(prev => [pubRes.data.audit, ...prev]);
       setStep(8);
       addLog(`PROJECT_OPPORTUNITY_PUBLISHED emitted successfully. Opportunity published: ID ${pubRes.data.opportunity_id}.`);
       toast.success("Project Opportunity published successfully!");
     } catch (err) {
-      addLog(`Publication failed: ${err.message}`, "ERROR");
-      toast.error("Failed to publish Project Opportunity");
+      const detail = err.response?.data?.detail;
+      const reason = detail?.reason || detail?.message || err.message;
+      const blocked = detail?.blocking_item_ids ? ` [blocked: ${detail.blocking_item_ids.join(", ")}]` : "";
+      addLog(`Publication failed: ${reason}${blocked}`, "ERROR");
+      toast.error(detail?.error_code === "PUBLICATION_BLOCKED" ? "Publication blocked by readiness gate" : "Failed to publish Project Opportunity");
     } finally {
       setLoading(false);
     }
@@ -307,6 +315,7 @@ export default function HomeSteward() {
 
               <div className="space-y-3">
                 <button
+                  data-testid="steward-ask-btn"
                   onClick={handleAsk}
                   disabled={loading}
                   className="w-full flex items-center justify-between p-4 rounded-md border border-[#27272a] bg-[#111113] hover:border-teal transition-all text-left group"
@@ -440,7 +449,7 @@ export default function HomeSteward() {
                 </div>
 
                 <div className="flex gap-3 pt-2">
-                  <Button onClick={() => setStep(3)} className="flex-1 bg-teal hover:bg-teal/90 text-black font-semibold" style={{ background: "#14f1d9" }}>
+                  <Button data-testid="steward-explore-btn" onClick={() => setStep(3)} className="flex-1 bg-teal hover:bg-teal/90 text-black font-semibold" style={{ background: "#14f1d9" }}>
                     Explore Replacement Options
                   </Button>
                   <Button variant="outline" onClick={() => setStep(1)} className="border-[#27272a] text-[#a1a1aa] hover:bg-[#1a1a1e]">
@@ -490,7 +499,7 @@ export default function HomeSteward() {
               </div>
 
               <div className="flex gap-3 pt-2">
-                <Button onClick={handleConfirm} disabled={loading} className="flex-1 bg-teal hover:bg-teal/90 text-black font-semibold" style={{ background: "#14f1d9" }}>
+                <Button data-testid="steward-confirm-btn" onClick={handleConfirm} disabled={loading} className="flex-1 bg-teal hover:bg-teal/90 text-black font-semibold" style={{ background: "#14f1d9" }}>
                   {loading ? "Creating Project..." : "Confirm & Create Project"}
                 </Button>
                 <Button variant="outline" onClick={() => setStep(2)} className="border-[#27272a] text-[#a1a1aa] hover:bg-[#1a1a1e]">
@@ -607,7 +616,7 @@ export default function HomeSteward() {
             </div>
 
             <div className="flex gap-3 pt-2">
-              <Button onClick={handleToScenarios} className="flex-1 bg-teal hover:bg-teal/90 text-black font-semibold" style={{ background: "#14f1d9" }}>
+              <Button data-testid="steward-to-scenarios-btn" onClick={handleToScenarios} className="flex-1 bg-teal hover:bg-teal/90 text-black font-semibold" style={{ background: "#14f1d9" }}>
                 Next: Invest Scenarios Comparison
               </Button>
               <Button variant="outline" onClick={() => setStep(3)} className="border-[#27272a] text-[#a1a1aa] hover:bg-[#1a1a1e]">
@@ -662,7 +671,7 @@ export default function HomeSteward() {
             </div>
 
             <div className="flex gap-3 pt-2">
-              <Button onClick={handleToBuildReady} className="flex-1 bg-teal hover:bg-teal/90 text-black font-semibold" style={{ background: "#14f1d9" }}>
+              <Button data-testid="steward-to-buildready-btn" onClick={handleToBuildReady} className="flex-1 bg-teal hover:bg-teal/90 text-black font-semibold" style={{ background: "#14f1d9" }}>
                 Next: Build Ready completeness review
               </Button>
               <Button variant="outline" onClick={() => setStep(4)} className="border-[#27272a] text-[#a1a1aa] hover:bg-[#1a1a1e]">
@@ -734,13 +743,14 @@ export default function HomeSteward() {
                 **H-012 RESTRICTION:** The unverified deck condition is marked as BLOCKING. You cannot publish this project to the Contractor lead marketplace until the deck is inspected OR you check the explicit override to publish as an "In-planning diagnostic quote request".
               </p>
               <label className="flex items-center gap-2 cursor-pointer select-none">
-                <Switch checked={overrideReadiness} onCheckedChange={setOverrideReadiness} className="scale-90" />
+                <Switch data-testid="steward-ack-switch" checked={overrideReadiness} onCheckedChange={setOverrideReadiness} className="scale-90" />
                 <span className="text-[11px] text-[#a1a1aa]">I confirm that this project will be published solely as a diagnostic scoping request.</span>
               </label>
             </div>
 
             <div className="flex gap-3 pt-2">
               <Button
+                data-testid="steward-to-preview-btn"
                 onClick={handleToPreview}
                 disabled={!overrideReadiness}
                 className={`flex-1 font-semibold text-black ${overrideReadiness ? "bg-teal hover:bg-teal/90" : "bg-teal/50 cursor-not-allowed"}`}
@@ -877,7 +887,7 @@ export default function HomeSteward() {
             </div>
 
             <div className="flex gap-3 pt-2">
-              <Button onClick={handlePublish} className="flex-1 bg-teal hover:bg-teal/90 text-black font-semibold" style={{ background: "#14f1d9" }}>
+              <Button data-testid="steward-publish-btn" onClick={handlePublish} className="flex-1 bg-teal hover:bg-teal/90 text-black font-semibold" style={{ background: "#14f1d9" }}>
                 I Approve - Publish Opportunity
               </Button>
               <Button variant="outline" onClick={() => setStep(6)} className="border-[#27272a] text-[#a1a1aa] hover:bg-[#1a1a1e]">
@@ -889,7 +899,7 @@ export default function HomeSteward() {
 
         {/* STEP 8: Published Successfully */}
         {step === 8 && (
-          <div className="space-y-6 rise-animation text-center py-10">
+          <div data-testid="steward-published-success" className="space-y-6 rise-animation text-center py-10">
             <div className="w-16 h-16 rounded-full bg-teal/10 text-teal border border-teal/20 grid place-items-center mx-auto mb-4" style={{ background: "rgba(20,241,217,0.1)", color: "#14f1d9", borderColor: "rgba(20,241,217,0.2)" }}>
               <CheckCircle2 size={32} />
             </div>

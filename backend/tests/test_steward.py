@@ -156,7 +156,7 @@ class TestHomeSteward:
         assert "redacted_personal_info" in data
         assert "shared_documents" in data
         
-    # --- Task 12: Project Opportunity Publication ---
+    # --- Task 12: Project Opportunity Publication (H-013 Batch 2A: governed path) ---
     def test_publish_opportunity(self, homeowner_session, api_url):
         # Get property_id
         fix_r = homeowner_session.get(f"{api_url}/steward/fixture")
@@ -167,14 +167,28 @@ class TestHomeSteward:
         scenarios = sc_r.json()
         proj_sc = [s for s in scenarios if s.get("name") == "Project: Roof Replacement"][0]
         
-        # Publish
+        # H-013 Batch 2A: the legacy route now routes through the single governed
+        # publication service, which enforces the deck CONDITIONAL blocker. Without
+        # acknowledgment the publication is correctly blocked (409); acknowledging
+        # RDY-DECK-CONDITION permits the governed publication to proceed.
+        blocked_r = homeowner_session.post(f"{api_url}/steward/publish", json={
+            "property_id": pid,
+            "scenario_id": proj_sc["id"],
+            "remove_personal_info": True,
+        })
+        assert blocked_r.status_code == 409, blocked_r.text
+        assert blocked_r.json()["detail"]["error_code"] == "PUBLICATION_BLOCKED"
+        assert "RDY-DECK-CONDITION" in blocked_r.json()["detail"]["blocking_item_ids"]
+
+        # Publish with the homeowner acknowledgment of the site-verification blocker
         pub_r = homeowner_session.post(f"{api_url}/steward/publish", json={
             "property_id": pid,
             "scenario_id": proj_sc["id"],
             "timeline_preference": "30 days",
             "budget_preference": "Premium",
             "shared_document_ids": ["doc_01"],
-            "remove_personal_info": True
+            "remove_personal_info": True,
+            "acknowledged_blockers": ["RDY-DECK-CONDITION"],
         })
         assert pub_r.status_code == 200
         pub_data = pub_r.json()

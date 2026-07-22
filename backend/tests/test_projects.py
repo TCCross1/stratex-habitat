@@ -25,12 +25,13 @@ def register_user(api_url, name, email, password, role="homeowner"):
 class TestProjectsUnitAndIntegration:
 
     @pytest.fixture(autouse=True)
-    def setup_class(self, api_url):
+    def setup_class(self, api_url, db):
         self.api = api_url
-        
-        # Connect to MongoDB to seed test-specific isolated records
-        self.mongo = pymongo.MongoClient("mongodb://localhost:27017")
-        self.db = self.mongo["habitat_test"]
+
+        # Seed test-specific isolated records against the SAME database the
+        # backend uses (config-driven via the shared `db` fixture; no hard-coded
+        # localhost URL or database name).
+        self.db = db
 
         # Register test users
         register_user(self.api, "Alice Homeowner", "alice_test@stratexhabitat.com", "Demo123!", "homeowner")

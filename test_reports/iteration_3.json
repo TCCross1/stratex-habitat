@@ -1,0 +1,78 @@
+{
+  "summary": "Frontend E2E verification of STRATEX HABITAT H-013 Wave 1 Batch 2A — governed publication path via the legacy /api/steward/publish wrapper. Logged in as homeowner via 'Homeowner' Quick Demo Access on /login (data-testid=demo-homeowner), navigated to /steward, and executed both the happy path and the negative-control gate test using the specified data-testids. Both scenarios PASS with no code changes.",
+  "positive_governed_publish": {
+    "steps_executed_in_order": [
+      "steward-ask-btn",
+      "steward-explore-btn",
+      "steward-confirm-btn",
+      "steward-to-scenarios-btn",
+      "steward-to-buildready-btn",
+      "steward-ack-switch (toggled ON, data-state went unchecked -> checked)",
+      "steward-to-preview-btn (became enabled after ack)",
+      "steward-publish-btn"
+    ],
+    "final_state": "steward-published-success visible = TRUE",
+    "captured_request": {
+      "method": "POST",
+      "url": "https://exciting-torvalds-7.preview.emergentagent.com/api/steward/publish",
+      "body": {
+        "property_id": "e67deb31-112d-48bb-a1a2-252f9a336b2b",
+        "scenario_id": "57e33840-748b-4a8d-bbe7-b5d334f35200",
+        "timeline_preference": "60 days",
+        "budget_preference": "Competitive",
+        "shared_document_ids": ["doc_01"],
+        "remove_personal_info": true,
+        "acknowledged_blockers": ["RDY-DECK-CONDITION"]
+      },
+      "acknowledged_blockers_present": true,
+      "contains_RDY_DECK_CONDITION": true
+    },
+    "captured_response": {
+      "http_status": 200,
+      "status": "published",
+      "opportunity_id": "b6ce68d4-249a-4518-9871-39ba552cc120",
+      "workflow_id": "31641a7b-be5a-4d98-8ddc-247df7f37ae2",
+      "correlation_id": "4aa932bb-45c7-43cf-86da-5b638392f1c0",
+      "workflow_origin": "legacy_publish_wrapper",
+      "workflow_current_state": "OPPORTUNITY_PUBLISHED",
+      "audit_publication_path": "governed_shared_service",
+      "audit_governed_publication": true,
+      "readiness_assessment_can_publish": true,
+      "readiness_conditional_blocker_ids": ["RDY-DECK-CONDITION"],
+      "readiness_deck_condition_acknowledged": true
+    }
+  },
+  "negative_gate_enforcement": {
+    "steps_executed": [
+      "steward-ask-btn -> steward-explore-btn -> steward-confirm-btn -> steward-to-scenarios-btn -> steward-to-buildready-btn"
+    ],
+    "ack_switch_toggled": false,
+    "steward_to_preview_btn_disabled": true,
+    "result": "PASS — button is disabled while steward-ack-switch is OFF, so preview/publish are unreachable and the governed readiness gate is honored in the browser."
+  },
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/frontend/src/pages/HomeSteward.js"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "HomeSteward.js is ~1102 lines — above the 700-line soft limit. Consider splitting each step (Ask, Confirm, DesignStudio prepop, ScenarioCompare, BuildReady, PackagePreview, Success) into sub-components plus a hook that owns the 8-step state machine and API calls. Would also make the governed publish handler testable in isolation.",
+    "handlePublish sends acknowledged_blockers derived from readinessData?.required_acknowledgment_ids first, then falls back to conditional_blocker_ids. The governed backend recomputes readiness server-side and here required_acknowledgment_ids came back empty while conditional_blocker_ids=['RDY-DECK-CONDITION'] — the fallback correctly picked up the deck condition and the request succeeded. Fine as-is, but worth a code comment noting the fallback is load-bearing for CONDITIONAL blockers.",
+    "The Build Ready acknowledgment UX copy still says 'diagnostic scoping request' whereas the governed contract treats it as an explicit CONDITIONAL blocker acknowledgment (RDY-DECK-CONDITION). Copy is technically accurate but could be tightened to match the governed language (e.g. 'I acknowledge the North Slope deck condition needs on-site verification before final scope').",
+    "steward-published-success step still references estimateData.scenarios.low/high in the summary card; if a user ever reaches step 8 without estimateData populated (e.g. after a hot reload) this would throw. Guard with optional chaining.",
+    "handlePublish toast on error uses detail?.error_code === 'PUBLICATION_BLOCKED' — good — but does not surface which blocker(s) blocked. Consider showing detail.blocking_item_ids in the toast for faster homeowner comprehension."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "not-tested-this-iteration (backend already at 100% per test_h013_publication.py + test_h013_http_gates.py)", "frontend": "100% (2/2 scenarios: governed happy path + gate negative control)" },
+  "test_credentials": "alex@stratexhabitat.com / Demo123! via [data-testid=demo-homeowner] Quick Demo on /login",
+  "seed_data_creation": "Created exactly one Project Opportunity via governed publish: opportunity_id=b6ce68d4-249a-4518-9871-39ba552cc120, workflow_id=31641a7b-be5a-4d98-8ddc-247df7f37ae2, correlation_id=4aa932bb-45c7-43cf-86da-5b638392f1c0. Non-destructive to other seed data.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "H-013 Batch 2A governed publish path verified end-to-end in the browser. The legacy POST /api/steward/publish is a thin wrapper — response.workflow.origin === 'legacy_publish_wrapper' and audit.details.publication_path === 'governed_shared_service' both confirm the single-path guarantee. Frontend testids proven: steward-ask-btn, steward-explore-btn, steward-confirm-btn, steward-to-scenarios-btn, steward-to-buildready-btn, steward-ack-switch, steward-to-preview-btn (disabled until ack), steward-publish-btn, steward-published-success. If backend adds a new hard blocker in future, the current UI only exposes ONE ack switch — additional required_acknowledgment_ids beyond RDY-DECK-CONDITION would not be individually surfaced.",
+  "rca of the issue": "N/A — no bugs. Verified: (a) request body carries acknowledged_blockers=['RDY-DECK-CONDITION'], (b) response is HTTP 200 with status='published', non-empty opportunity_id and workflow_id, (c) response workflow.origin='legacy_publish_wrapper' and audit.publication_path='governed_shared_service' prove the single governed path, (d) steward-to-preview-btn is disabled when the ack switch is OFF, proving the readiness gate is enforced at the UI before any publish request can be issued."
+}
