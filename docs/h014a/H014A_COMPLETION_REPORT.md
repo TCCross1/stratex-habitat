@@ -161,3 +161,15 @@ Recorded in the chat corrective/closure report (local only; not pushed, not merg
 ## 33. Honest readiness classification
 Verified locally against live backend + MongoDB and a real browser (frontend). **NOT accepted,
 NOT production-ready.** Stop and await General Atlas QC.
+
+## 34. H-014A.1 post-acceptance hardening (addendum — see `H014A_1_HARDENING_REPORT.md`)
+H-014A was ACCEPTED WITH NON-BLOCKING DEBT. The authorized H-014A.1 pass closed all four QC
+findings: **QC-1** uniform 404 property/object non-disclosure (real properties); **QC-2**
+client `storage_object_reference` bound to the server-derived `tenant/{tenant}/property/{property}/reality/`
+prefix (foreign/encoded/traversal rejected); **QC-3** deterministic reference-room view assembled
+from fixed fixture ids (exactly 2 frames / 12 entities); **QC-4** `REALITY_TRUTH_PROMOTION_REJECTED`
+audited exactly once, fail-closed. Validation: H-014A 111 passed, H-013 20 passed, full backend
+221 passed / 1 unrelated skip, 17 routes, frontend 100% (`iteration_5.json`), coverage 78%
+(artifact_service 91%, authz 68%). Reconciliation preserved: accepted H-014A diff = 20 files/+1061/−24;
+15 emitted / 17 defined audit types before the patch. Still a foundation milestone — no object
+retrieval, no LiDAR, no 3D editor, no Passport write path; local-only; not production-ready.

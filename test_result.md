@@ -484,3 +484,55 @@ agent_communication:
         entity_count 12, coordinate frame PROPERTY_FRAME, and the artifact 'storage' row showing the masked token
         (not a raw path/URL). (2) Home Steward (/steward) still loads for the same user (no regression).
         Do NOT test backend (already covered). Credentials in /app/memory/test_credentials.md.
+
+#====================================================================================================
+# H-014A.1 — Post-acceptance hardening (QC-1..QC-4)
+#====================================================================================================
+
+h014a_1_hardening:
+  - task: "QC-1 uniform property/object non-disclosure; QC-2 storage-ref prefix binding; QC-3 deterministic reference-room view; QC-4 truth-promotion rejection audit"
+    implemented: true
+    working: true
+    file: "backend/reality/{authz,artifact_service,router,fixtures,spatial_service}.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: >
+            QC-1: authz.not_found_nondisclosure() -> real properties + subordinate objects return identical
+            404 NOT_FOUND for nonexistent AND existing-but-unauthorized; reference synthetic id keeps 403.
+            QC-2: validate_storage_reference(value,*,tenant_id,property_id) enforces server-derived
+            tenant/{tenant}/property/{property}/reality/ prefix; rejects foreign tenant/property, URL, signed URL,
+            absolute, traversal, repeated slash, dot segment, percent/backslash/fragment/whitespace/case tricks.
+            QC-3: assemble_view reads fixed fixture id set only (2 frames / 12 entities, deterministic).
+            QC-4: REALITY_TRUTH_PROMOTION_REJECTED emitted exactly once, sanitized, tenant/property/actor bound,
+            best-effort (denial survives audit failure). Evidence: H-014A 111 passed; H-013 20 passed; full backend
+            221 passed / 1 unrelated skip; 17 routes; coverage reality 78% (artifact_service 91%, authz 68%);
+            writes isolated to reality_* + audit_events.
+
+  - task: "H-014A.1 frontend regression (Reality Foundation read-only + QC-3 2-frame view + Home Steward)"
+    implemented: true
+    working: true
+    file: "frontend/src/pages/RealityStudioFoundation.js (unchanged)"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: >
+            iteration_5.json — 100% frontend pass. Read-only (0 buttons in reality-foundation-page); fixture banner;
+            dims 4.88 x 6.10, 29.768 m²; entity_count 12; QC-3 verified EXACTLY 2 fixture frames from live bootstrap
+            response (PROPERTY_FRAME + ROOM_FRAME); artifact storage masked token, no url/fixture leak in UI; Home
+            Steward loads with Villa Horizon context. Cosmetic notes only (6.1 vs 6.10; UI renders PROPERTY_FRAME only)
+            — out of H-014A.1 scope, not changed.
+
+agent_communication:
+    - agent: "main"
+      message: >
+        H-014A.1 hardening complete and self-verified (backend pytest + reproduced coverage + testing-agent frontend
+        iteration_5.json 100%). No new routes, no frontend nav change, writes isolated, no Passport path. Local commit
+        only; awaiting independent Atlas QC. Not production-ready; H-014B not authorized.
+

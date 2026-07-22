@@ -68,6 +68,14 @@ STRATEX HABITAT™ is a separate homeowner + contractor-facing app that handshak
 - **Phase 5/6:** 17 routes registered; H-014A 81 PASS / full backend 191 PASS, 1 unrelated skip, 0 fail; measured coverage (coverage 7.15.2, server subprocess + in-process unit, combined) reality package **75% line + branch**, artifact_service 89%.
 - Files changed vs `5142c0f`: `reality/artifact_service.py`, `reality/model_version_service.py`, `reality/spatial_service.py`, `reality/fixtures.py`, `tests/test_h014a_reality.py` + docs. NOT accepted / NOT production-ready — awaiting General Atlas QC. No LiDAR, no 3D editor, no Save-to-GitHub, no merge to main.
 
+## Implemented (2026-06) — H-014A.1 post-acceptance hardening (QC-1..QC-4)
+- H-014A was ACCEPTED WITH NON-BLOCKING DEBT; H-014A.1 closes all four Atlas QC findings (backend-only, narrow scope).
+- **QC-1:** uniform `404 NOT_FOUND` for nonexistent AND existing-but-unauthorized real properties/objects (`authz.not_found_nondisclosure()`); reference-room synthetic public id keeps `403`.
+- **QC-2:** `validate_storage_reference(value, *, tenant_id, property_id)` enforces the server-derived `tenant/{tenant}/property/{property}/reality/` prefix; rejects foreign tenant/property, URL/signed-URL, absolute/traversal/repeated-slash/dot-segment/percent/backslash/fragment/whitespace/case tricks. Default stays server-generated.
+- **QC-3:** `assemble_view` reads the fixed fixture id set only → deterministic (2 frames / 12 entities) regardless of dev writes.
+- **QC-4:** `REALITY_TRUTH_PROMOTION_REJECTED` emitted once on denial (sanitized, tenant/property/actor bound), best-effort (denial survives audit failure).
+- Validation: H-014A 111 pass, H-013 20 pass, full backend 221 pass/1 unrelated skip, 17 routes, frontend 100% (`iteration_5.json`), coverage 78% (artifact_service 91%, authz 68%). Writes isolated to `reality_*`+`audit_events`. Docs: `docs/h014a/H014A_1_HARDENING_REPORT.md`. Local-only, not production-ready, H-014B not authorized.
+
 ## Backlog
 - **P0 (next):** Wire real STRATEX Core API (replace mock publish/sync) once URL/keys provided; swap Emergent storage → customer AWS S3 with signed URLs + version history.
 - **P1:** Authenticity review queue UI (metadata/URL/screenshot → pending/verified/rejected) influencing external-proof confidence; award/dispute lifecycle on quotes; LLM-generated AI findings; Design Studio + Scenario Planner interactive modeling.
