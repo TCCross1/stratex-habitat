@@ -53,6 +53,13 @@ STRATEX HABITAT™ is a separate homeowner + contractor-facing app that handshak
 - Reuses (does not replace) H-013: projection boundary, workflow governance, readiness policy, price book, redaction, fixtures, object storage, projects/PIP, audit/passport events.
 - Consistency validation: internally consistent + consistent with H-013 baseline (doc-level only; no runtime/tests/UI). Awaiting General Atlas QC. Not production, not implemented.
 
+## Implemented (2026-06) — H-014A Reality Studio backend foundation (targeted null-fallback correction)
+- Fixed 2 reproduced nullable-field defects using explicit `None`-only checks (NOT `or`, to preserve validation of malformed supplied values):
+  - `reality/coordinate_service.create_frame`: omitted/null `transform_to_parent`/`transform_to_property` → identity default; supplied invalid matrices still rejected by `validate_transform`.
+  - `reality/artifact_service.create_manifest`: omitted/null `storage_object_reference` → governed default key; added `validate_storage_reference` rejecting blank/URL/absolute/signed/traversal refs (no silent fallback); public view still emits only the `<governed-object-store-reference>` token.
+- Added 20 focused regression tests (frame + storage-ref, unit + HTTP) in `tests/test_h014a_reality.py`.
+- Validation: 2 orig-fail tests PASS; H-014A suite 59 PASS; H-013 security/publication/gates 20 PASS; full backend 169 PASS / 1 skipped (pre-existing live-Gemini render, unrelated). Local commit `5142c0f`. NOT accepted / NOT production-ready — awaiting General Atlas QC. No Save-to-GitHub, no merge to main.
+
 ## Backlog
 - **P0 (next):** Wire real STRATEX Core API (replace mock publish/sync) once URL/keys provided; swap Emergent storage → customer AWS S3 with signed URLs + version history.
 - **P1:** Authenticity review queue UI (metadata/URL/screenshot → pending/verified/rejected) influencing external-proof confidence; award/dispute lifecycle on quotes; LLM-generated AI findings; Design Studio + Scenario Planner interactive modeling.
