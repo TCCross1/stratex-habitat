@@ -101,3 +101,137 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: >
+  Habitat H-013 Production Hardening — Wave 1. Recover backend runtime and advance the
+  existing H-012 Home Steward vertical slice. Batch 1 delivers critical runtime + security
+  gates: CI dependency repair, fixture governance, governed price-book, and backend-enforced
+  contractor-package redaction. (Passport projection / Build-Ready / persistence deferred to Batch 2.)
+
+backend:
+  - task: "H-013 #1 Backend runtime / dependency pin (cryptography + pyOpenSSL GEN_EMAIL fix)"
+    implemented: true
+    working: true
+    file: "backend/requirements.txt"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Pinned cryptography==44.0.1 + pyOpenSSL==25.1.0. Live runtime (py3.11, plain mongodb) never reproduced the crash; backend healthy HTTP 200 after restart. Crash was CI/py3.12 only."
+
+  - task: "H-013 #4 Deterministic fixture env-gate + provenance"
+    implemented: true
+    working: true
+    file: "backend/fixture_provider.py, backend/steward.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "/steward/fixture and /steward/context gated + tagged (is_fixture, _provenance authoritative=False). Disabled in production -> 409. Default dev keeps 200 (legacy keys preserved). Unit tests + HTTP smoke pass."
+        - working: true
+          agent: "testing"
+          comment: "✓ VERIFIED: GET /api/steward/fixture returns HTTP 200 with is_fixture==true, _provenance.authoritative==false, and all legacy keys (passport_explanation, truth_states, unresolved_gap, authorized_owner=='alex@stratexhabitat.com') present. GET /api/steward/context returns HTTP 200 with is_fixture==true and published_explanation contains all required provenance fields (source_system, source_id, version, truth_classification, timestamp, authorization_scope). Fixture gate working correctly in development environment."
+
+  - task: "H-013 #7 Governed versioned price-book provider"
+    implemented: true
+    working: true
+    file: "backend/pricebook.py, backend/steward.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "All roof price literals moved out of steward EST_DATA into pricebook.py (version 2026.07.0). /steward/estimate now returns price_book_version + price_provenance (governed, authoritative=False) while preserving legacy fields (pricing_date, scenarios, breakdown, cost_delta_explanation)."
+        - working: true
+          agent: "testing"
+          comment: "✓ VERIFIED: POST /api/steward/estimate with 'GAF Timberline HDZ' returns HTTP 200 with price_book_version=='2026.07.0', price_provenance.price_source=='HABITAT_GOVERNED_PRICE_BOOK', governed==true, authoritative==false. All legacy fields present: pricing_date=='July 2026', geographic_basis contains 'Austin', scenarios, breakdown, cost_delta_explanation. POST with 'DECRA Standing Seam' returns cost_delta_explanation containing 'premium materials'. Governed price-book working correctly."
+
+  - task: "H-013 #9 Backend-enforced contractor-package redaction"
+    implemented: true
+    working: true
+    file: "backend/redaction.py, backend/steward.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "GET /steward/contractor-package builds internal package (real PII + internal fields) then returns redaction.redact_contractor_package(). Preview strips ALL PII/internal (email/last name/phone/exact address/owner_id/correlation_id) and exposes only shared=True docs. ?approved=true releases homeowner_contact only; internal fields still stripped. Backward-compat keys (redacted_personal_info, quantity_takeoff, shared_documents) retained as masks. HTTP smoke: 0 leaks."
+        - working: true
+          agent: "testing"
+          comment: "✓ VERIFIED: GET /api/steward/contractor-package (preview mode) returns HTTP 200 with ZERO PII leaks - no 'Morgan', 'alex@stratexhabitat.com', '(512) 555-0101', '1420 Vista Ridge', owner_id, or correlation_id found in response. Contains redacted_personal_info mask block (values=='REDACTED'), quantity_takeoff, shared_documents with ONLY doc_01 (doc_02 correctly filtered). redaction.redaction_enforced==true, tier=='preview'. homeowner_contact correctly withheld. GET with ?approved=true returns HTTP 200 with homeowner_contact.email=='alex@stratexhabitat.com', tier=='contractor', but internal fields ('1420 Vista Ridge', correlation_id) still correctly stripped. Backend redaction security gate working perfectly."
+
+  - task: "H-013 #10 Executable security-gate tests"
+    implemented: true
+    working: true
+    file: "backend/tests/test_h013_security.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "9 unit tests (price-book provenance, fixture gate incl production-disabled, redaction preview/approved) all pass."
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "H-013 #9 Backend-enforced contractor-package redaction"
+    - "H-013 #4 Deterministic fixture env-gate + provenance"
+    - "H-013 #7 Governed versioned price-book provider"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "main"
+      message: >
+        Batch 1 backend changes complete. Please verify (homeowner alex@stratexhabitat.com / Demo123!):
+        (1) GET /api/steward/contractor-package (no query) returns NO homeowner PII (no 'Morgan',
+        no email 'alex@stratexhabitat.com', no phone '(512) 555-0101', no exact address '1420 Vista Ridge',
+        no owner_id/correlation_id) and shared_documents contains ONLY doc_01; redaction.redaction_enforced==true, tier=='preview'.
+        (2) GET /api/steward/contractor-package?approved=true DOES return homeowner_contact.email but STILL no
+        exact address / correlation_id (internal fields stripped); tier=='contractor'.
+        (3) POST /api/steward/estimate {"material":"GAF Timberline HDZ"} returns price_book_version and
+        price_provenance.price_source=='HABITAT_GOVERNED_PRICE_BOOK' with governed==true, authoritative==false,
+        while still returning pricing_date 'July 2026', scenarios, breakdown, cost_delta_explanation.
+        (4) GET /api/steward/fixture and /api/steward/context are 200 with is_fixture==true and
+        _provenance.authoritative==false (default dev env). Tenant isolation: contractor (horizon@stratexhabitat.com)
+        gets 403; unauthenticated gets 401.
+        (5) Regression: existing Home Steward endpoints (ask/recommendation/confirm/scenarios/readiness/publish/memory)
+        still behave as before. Do NOT toggle HABITAT_ENABLE_FIXTURES on the live server.
+    - agent: "testing"
+      message: >
+        ✅ ALL H-013 BATCH 1 SECURITY GATES VERIFIED (19/19 tests passed):
+        
+        SECURITY GATE #9 (Contractor-Package Redaction): ✓ PASS
+        - Preview mode: Zero PII leaks, all sensitive data redacted, only shared documents exposed
+        - Approved mode: Contact info released but internal fields still protected
+        
+        SECURITY GATE #7 (Governed Price-Book): ✓ PASS
+        - Price-book version 2026.07.0 with full provenance metadata
+        - Legacy fields preserved, cost delta explanations working
+        
+        SECURITY GATE #4 (Fixture Gate + Provenance): ✓ PASS
+        - Fixtures properly tagged as non-authoritative demo data
+        - All provenance fields present and correct
+        
+        TENANT ISOLATION / AUTH: ✓ PASS
+        - Contractor correctly blocked (403) from steward endpoints
+        - Unauthenticated requests correctly rejected (401)
+        
+        REGRESSION (H-012 Endpoints): ✓ PASS
+        - All 8 existing endpoints working: ask, recommendation, scenarios, readiness, confirm, publish, memory
+        
+        Backend is production-ready for H-013 Batch 1 deployment.
+

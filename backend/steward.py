@@ -10,6 +10,12 @@ from typing import List, Optional, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
+# H-013 governed provider modules
+import pricebook
+import fixture_provider as fx
+from fixture_provider import FixtureDisabledError
+import redaction
+
 logger = logging.getLogger("habitat.steward")
 
 steward_router = APIRouter(prefix="/steward")
@@ -101,7 +107,13 @@ async def get_fixture(user: dict = Depends(get_steward_user), db = Depends(get_d
     pid = await resolve_property_id(db, user["email"])
     fixture = ROOF_FIXTURE_STORE.copy()
     fixture["property_id"] = pid
-    return fixture
+    try:
+        # H-013 #4: deterministic fixtures are environment-gated and
+        # provenance-tagged so they are never served silently as truth.
+        # Disabled automatically in production (HABITAT_ENV=production).
+        return fx.serve_fixture(fixture, "roof_condition_fixture")
+    except FixtureDisabledError as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
 # ---------------------------------------------------------------------------
 # Task 3: Property Context Orchestrator
@@ -214,7 +226,13 @@ async def get_context(user: dict = Depends(get_steward_user), db = Depends(get_d
         }
     }
     
-    return context_payload
+    try:
+        # H-013 #4: this demo projection is fixture-derived; gate + tag it so it
+        # is never mistaken for canonical Passport truth. The real versioned
+        # Passport projection boundary lands in H-013 Batch 2.
+        return fx.serve_fixture(context_payload, "property_context_projection")
+    except FixtureDisabledError as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
 # ---------------------------------------------------------------------------
 # Task 4: Homeowner Question Experience
@@ -308,7 +326,10 @@ async def get_recommendation(user: dict = Depends(get_steward_user)):
         {
             "type": "Begin replacement planning",
             "description": "Prepare scoping scenarios in Design Studio if deck damage is systemic.",
-            "effort": "1-2 weeks, $9,800 - $38,000"
+            "effort": "1-2 weeks, " + pricebook.format_range(
+                pricebook.get_assembly("GAF Timberline HDZ")["local_low"],
+                pricebook.get_assembly("DECRA Standing Seam")["local_high"],
+            )
         },
         {
             "type": "Review warranty coverage",
@@ -393,8 +414,8 @@ async def confirm_action(body: ConfirmActionReq, user: dict = Depends(get_stewar
             "base_image": "https://static.prod-images.emergentagent.com/jobs/c119c08f-8c40-44cf-8b5d-30e3b2d20f4a/images/d8131a35be696a34f7df7d3c45864fbf1f935060c03d1c8f6551fc33afcdcac9.png",
             "lighting": "daylight",
             "notes": "Homeowner-initiated project to explore roofing options after minor North Slope deflection finding.",
-            "est_low": 9800.0,
-            "est_high": 13400.0,
+            "est_low": float(pricebook.planning_estimate(pricebook.default_roof_material())["range"]["low"]),
+            "est_high": float(pricebook.planning_estimate(pricebook.default_roof_material())["range"]["high"]),
             "linked_quotes": [],
             "known_unknowns": [
                 "Underlayment sheathing moisture levels",
@@ -414,56 +435,8 @@ async def confirm_action(body: ConfirmActionReq, user: dict = Depends(get_stewar
 # ---------------------------------------------------------------------------
 # Task 8: Project Estimator Integration
 # ---------------------------------------------------------------------------
-EST_DATA = {
-    "GAF Timberline HDZ": {
-        "material_label": "Architectural Shingle (GAF Timberline HDZ)",
-        "national_low": 8500, "national_high": 11500,
-        "regional_low": 9200, "regional_high": 12800,
-        "local_low": 9800, "local_high": 13400,
-        "breakdown": {
-            "materials": 3800,
-            "labor": 4200,
-            "equipment": 800,
-            "tear_off_disposal": 1200,
-            "permits_fees": 400,
-            "contractor_op": 1500,
-            "contingency": 700,
-            "taxes": 300
-        }
-    },
-    "DECRA Standing Seam": {
-        "material_label": "Standing Seam Metal Roofing (DECRA Standing Seam)",
-        "national_low": 22000, "national_high": 32000,
-        "regional_low": 24000, "regional_high": 35000,
-        "local_low": 26000, "local_high": 38000,
-        "breakdown": {
-            "materials": 13500,
-            "labor": 10500,
-            "equipment": 1800,
-            "tear_off_disposal": 1600,
-            "permits_fees": 500,
-            "contractor_op": 4500,
-            "contingency": 2500,
-            "taxes": 1100
-        }
-    },
-    "CertainTeed Grand Manor": {
-        "material_label": "Luxury Dimensional Shingle (CertainTeed Grand Manor)",
-        "national_low": 16000, "national_high": 22000,
-        "regional_low": 17500, "regional_high": 24500,
-        "local_low": 19000, "local_high": 26500,
-        "breakdown": {
-            "materials": 8800,
-            "labor": 7500,
-            "equipment": 1200,
-            "tear_off_disposal": 1400,
-            "permits_fees": 450,
-            "contractor_op": 3200,
-            "contingency": 1800,
-            "taxes": 750
-        }
-    }
-}
+# H-013 #7: roof assembly pricing now lives in the governed, versioned
+# price-book provider (backend/pricebook.py). No bare price literals remain here.
 
 class EstimateReq(BaseModel):
     material: str # "GAF Timberline HDZ" or "DECRA Standing Seam" or "CertainTeed Grand Manor"
@@ -474,12 +447,13 @@ async def calculate_estimate(body: EstimateReq, user: dict = Depends(get_steward
         raise HTTPException(status_code=403, detail="Tenant access restricted")
     
     mat = body.material
-    if mat not in EST_DATA:
-        # Fallback
-        mat = "GAF Timberline HDZ"
-    
-    spec = EST_DATA[mat]
-    total_expected = sum(spec["breakdown"].values())
+    if not pricebook.has_material(mat):
+        # Fallback to the governed default material
+        mat = pricebook.default_roof_material()
+
+    gov = pricebook.planning_estimate(mat, basis="local")
+    spec = pricebook.get_assembly(mat)
+    total_expected = gov["range"]["expected"]
     
     estimate_payload = {
         "pricing_date": "July 2026",
@@ -514,8 +488,12 @@ async def calculate_estimate(body: EstimateReq, user: dict = Depends(get_steward
     }
     
     # Calculate a cost delta explanation from Architectural Shingle (GAF Timberline)
-    ref_total = sum(EST_DATA["GAF Timberline HDZ"]["breakdown"].values())
+    ref_total = sum(pricebook.get_assembly(pricebook.default_roof_material())["breakdown"].values())
     delta = total_expected - ref_total
+
+    # H-013 #7: attach governed price-book provenance to every estimate.
+    estimate_payload["price_book_version"] = pricebook.PRICE_BOOK_VERSION
+    estimate_payload["price_provenance"] = gov["provenance"]
     
     if delta == 0:
         estimate_payload["cost_delta_explanation"] = "This is the baseline architectural roofing selection."
@@ -538,7 +516,10 @@ async def get_investment_scenarios(user: dict = Depends(get_steward_user)):
     scenarios = {
         "scenario_a": {
             "name": "Replace Now (Direct Upgrade)",
-            "estimated_cost": "$9,800 - $13,400 (Architectural) / $26,000 - $38,000 (Metal)",
+            "estimated_cost": (
+                pricebook.planning_estimate("GAF Timberline HDZ")["range_display"] + " (Architectural) / "
+                + pricebook.planning_estimate("DECRA Standing Seam")["range_display"] + " (Metal)"
+            ),
             "planning_confidence": "MEDIUM (due to hidden deck sheathing condition)",
             "maintenance_implications": "Zero expected roof maintenance costs for 25+ years.",
             "weather_exposure": "Eliminates hail & storm penetration vulnerabilities immediately.",
@@ -647,11 +628,25 @@ async def get_readiness(user: dict = Depends(get_steward_user)):
 # Task 11: Contractor Package Preview
 # ---------------------------------------------------------------------------
 @steward_router.get("/contractor-package")
-async def get_contractor_package_preview(user: dict = Depends(get_steward_user)):
+async def get_contractor_package_preview(
+    user: dict = Depends(get_steward_user),
+    approved: bool = Query(False, description="Homeowner approval to release contact info to contractors"),
+):
     if user["email"] != "alex@stratexhabitat.com":
         raise HTTPException(status_code=403, detail="Tenant access restricted")
-    
-    preview = {
+
+    # Governed planning estimate (no hard-coded price literal here).
+    gov = pricebook.planning_estimate("GAF Timberline HDZ", basis="local")
+
+    # Split the homeowner's display name for the internal (pre-redaction) record.
+    _name_parts = (user.get("name") or "").split()
+    _first = _name_parts[0] if _name_parts else "Homeowner"
+    _last = _name_parts[-1] if len(_name_parts) > 1 else ""
+
+    # Internal package: contains REAL PII + internal-only fields. This object is
+    # NEVER returned directly. H-013 #9 redaction strips everything a contractor
+    # is not entitled to see, on the backend, before any response is emitted.
+    internal_package = {
         "summary": "Villa Horizon Roof Replacement Project Package",
         "homeowner_approved_summary": "Explore replacement of the 2010 Asphalt Shingle roof with Architectural Shingles, addressing minor deflection.",
         "property_context": {
@@ -662,7 +657,8 @@ async def get_contractor_package_preview(user: dict = Depends(get_steward_user))
         "quantity_takeoff": {
             "area_sqft": 3200, "pitch": "6:12", "ridges_hips_lft": 180, "valleys_lft": 85
         },
-        "planning_estimate": "$9,800 - $13,400",
+        "planning_estimate": gov["range_display"],
+        "planning_estimate_provenance": gov["provenance"],
         "assumptions": [
             "Rafters are structural; decking rot limited to North Slope anomaly spot."
         ],
@@ -679,13 +675,22 @@ async def get_contractor_package_preview(user: dict = Depends(get_steward_user))
             {"id": "doc_01", "name": "2024_Drone_Inspection_Report.pdf", "shared": True},
             {"id": "doc_02", "name": "Property_Appraisal_Report_2019.pdf", "shared": False}
         ],
-        "redacted_personal_info": {
-            "last_name": "Morgan (Redacted in preview)",
-            "email": "alex@stratexhabitat.com (Shared only after contract)",
-            "phone": "Unshared"
-        }
+        # --- Sensitive / internal-only fields (must never reach a contractor) ---
+        "homeowner_contact": {
+            "first_name": _first,
+            "last_name": _last,
+            "email": user.get("email"),
+            "phone": "(512) 555-0101",
+        },
+        "exact_address": "1420 Vista Ridge Dr, Austin, TX 78733",
+        "owner_id": user.get("id"),
+        "internal_confidence": "MEDIUM",
+        "correlation_id": str(uuid.uuid4()),
     }
-    return preview
+
+    # H-013 #9: enforce redaction on the backend. Only allow-listed, non-sensitive
+    # fields survive; contact info is released only on explicit homeowner approval.
+    return redaction.redact_contractor_package(internal_package, homeowner_approved=approved)
 
 # ---------------------------------------------------------------------------
 # Task 12: Project Opportunity Publication
