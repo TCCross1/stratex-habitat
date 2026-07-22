@@ -721,6 +721,11 @@ from workflow import workflow_router
 import workflow as workflow_module
 api_router.include_router(workflow_router)
 
+# H-014A: Reality Studio shared spatial foundation (/api/reality/v1)
+from reality.router import reality_router
+import reality.indexes as reality_indexes
+api_router.include_router(reality_router)
+
 app.include_router(api_router)
 app.add_middleware(CORSMiddleware, allow_credentials=True,
                    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
@@ -741,6 +746,10 @@ async def startup():
         await workflow_module.init_indexes(db)
     except Exception as e:
         logger.error(f"Workflow index init failed: {e}")
+    try:
+        await reality_indexes.init_reality_indexes(db)
+    except Exception as e:
+        logger.error(f"Reality index init failed: {e}")
 
 
 @app.on_event("shutdown")

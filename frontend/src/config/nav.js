@@ -27,6 +27,7 @@ export const HOMEOWNER_NAV = [
     group: "Design & Plan",
     items: [
       { to: "/design-studio", label: "Design Studio", icon: PenTool },
+      { to: "/reality-foundation", label: "Reality Studio (Dev)", icon: Box },
       { to: "/scenario-planner", label: "Scenario Planner", icon: GitBranch },
     ],
   },
