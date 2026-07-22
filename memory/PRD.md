@@ -47,6 +47,12 @@ STRATEX HABITAT™ is a separate homeowner + contractor-facing app that handshak
 - **Tests:** backend `pytest tests/` = 110 passed, 1 skipped (50 H-013); frontend governed journey + gate control = 2/2. Docs: `docs/h013/H013_BATCH2A_ATLAS_QC.md`.
 - **Constraints honored:** No new features, no Batch 3, no Save-to-GitHub, no merge to main. Awaiting Atlas QC approval.
 
+## Implemented (2026-06) — H-014 Property Reality Studio Constitution & Shared Spatial Architecture (SPECIFICATION ONLY)
+- Delivered 22 architecture/specification documents + index under `docs/h014/` (Phases 1–22). No code implemented; backend/frontend untouched. Baseline accepted commit `c2fc57e`.
+- Core decisions: ONE shared spatial domain model (Interior/Exterior/Systems are views, not separate apps); ONE property coordinate frame with PLANNING tolerance (never survey-grade unless proven); ONE mandatory truth taxonomy (11 classes) on every datum; Room/Property DNA as projections (not canonical); ONE Reality Studio design state machine following accepted H-013 governance (single governed publication, non-overridable HARD blockers).
+- Reuses (does not replace) H-013: projection boundary, workflow governance, readiness policy, price book, redaction, fixtures, object storage, projects/PIP, audit/passport events.
+- Consistency validation: internally consistent + consistent with H-013 baseline (doc-level only; no runtime/tests/UI). Awaiting General Atlas QC. Not production, not implemented.
+
 ## Backlog
 - **P0 (next):** Wire real STRATEX Core API (replace mock publish/sync) once URL/keys provided; swap Emergent storage → customer AWS S3 with signed URLs + version history.
 - **P1:** Authenticity review queue UI (metadata/URL/screenshot → pending/verified/rejected) influencing external-proof confidence; award/dispute lifecycle on quotes; LLM-generated AI findings; Design Studio + Scenario Planner interactive modeling.
