@@ -22,6 +22,15 @@ STRATEX HABITAT™ is a separate homeowner + contractor-facing app that handshak
 - Device-adaptive shell (phone bottom-nav, tablet side rail, desktop dense) + iOS safe-area + PWA meta; official STRATEX HABITAT logo across every window + favicon/app icon.
 - **Design Studio (flagship):** real-façade exterior visualization. 13 editable zones with material-family constraints, 16-product structured materials library (mfr/profile/colors/tone/finish/durability/maintenance/energy/price-tier) with filters, 6 curated recommendation packages, 6 photorealistic preset scenarios of the actual home. Live photorealistic re-skin via Gemini Nano Banana image editing (Emergent key) stored to object storage. Before/after slider, save named scenarios with version history, favorite, compare (2-3 side-by-side), lighting modes (daylight/overcast/sunset), quick/advanced modes, and send-scenario-to-quote handoff (property ID, zones, materials, priority, project type) routed to matching contractors. Verified: 45/45 backend pytest + live render + all UI flows.
 
+## Implemented (2026-07-22) — H-013 Wave 1, Batch 1 (production hardening: security + runtime gates)
+- **Runtime/CI (#1):** Pinned `cryptography==44.0.1` + `pyOpenSSL==25.1.0` to eliminate the CI/Py3.12 `GEN_EMAIL` crash. Live runtime (py3.11, plain Mongo) never reproduced it; backend verified healthy.
+- **Fixture governance (#4):** New `backend/fixture_provider.py` — env-gated (`HABITAT_ENV`/`HABITAT_ENABLE_FIXTURES`), auto-disabled in production (HTTP 409), provenance-tagged (`authoritative:false`). Applied to `/steward/fixture` + `/steward/context`.
+- **Governed price-book (#7):** New `backend/pricebook.py` (version `2026.07.0`). All roof price literals removed from Steward; `/steward/estimate` now returns `price_book_version` + governed `price_provenance`.
+- **Backend redaction (#9):** New `backend/redaction.py` — allow-list server-side stripping. `/steward/contractor-package` returns no PII/internal fields in preview; `?approved=true` releases contact only. 0 leaks verified.
+- **Tests (#10):** `backend/tests/test_h013_security.py` (9 unit tests) + backend testing agent verified 19/19 (security gates + full H-012 regression).
+- Docs: `docs/h013/H013_REPOSITORY_VERIFICATION.md`, `H013_RUNTIME_REPAIR.md`, `H013_WAVE1_BATCH1.md`.
+- **Deferred to Batch 2:** #5 versioned Passport projection boundary, #6 Build-Ready publication-blocker reconciliation, #8 homeowner workflow persistence.
+
 ## Backlog
 - **P0 (next):** Wire real STRATEX Core API (replace mock publish/sync) once URL/keys provided; swap Emergent storage → customer AWS S3 with signed URLs + version history.
 - **P1:** Authenticity review queue UI (metadata/URL/screenshot → pending/verified/rejected) influencing external-proof confidence; award/dispute lifecycle on quotes; LLM-generated AI findings; Design Studio + Scenario Planner interactive modeling.
