@@ -15,6 +15,9 @@ import pricebook
 import fixture_provider as fx
 from fixture_provider import FixtureDisabledError
 import redaction
+# H-013 Batch 2 modules
+import passport_projection
+import readiness_policy
 
 logger = logging.getLogger("habitat.steward")
 
@@ -124,115 +127,18 @@ async def get_context(user: dict = Depends(get_steward_user), db = Depends(get_d
         raise HTTPException(status_code=403, detail="Tenant access restricted")
     
     pid = await resolve_property_id(db, user["email"])
-    
-    # Pre-packaged minimum necessary context pipeline
-    context_payload = {
-        "property_identity": {
-            "id": pid,
-            "name": "Villa Horizon",
-            "address": "Austin, TX",
-            "version": "1.2.0",
-            "truth_classification": "VERIFIED",
-            "confidence": "HIGH",
-            "timestamp": now_iso(),
-            "source_system": "Austin County Deeds Registry",
-            "source_id": "DEED-512-421A",
-            "authorization_scope": "property_ownership"
-        },
-        "published_explanation": {
-            "system": "Roofing",
-            "material": "Asphalt Shingle (Architectural Shingles)",
-            "installed_year": 2010,
-            "current_condition": "Fair",
-            "version": "2.0.1",
-            "truth_classification": "VERIFIED",
-            "confidence": "HIGH",
-            "timestamp": now_iso(),
-            "source_system": "Passport Core Certified Facts",
-            "source_id": "PASSPORT-ROOF-7718",
-            "authorization_scope": "property_projections_read"
-        },
-        "property_dna_projection": {
-            "material_class": "Asphalt/Bituminous Shingle",
-            "estimated_age_years": 16,
-            "weather_exposure_cycles": 16,
-            "version": "1.0.4",
-            "truth_classification": "ESTIMATED",
-            "confidence": "MEDIUM",
-            "timestamp": now_iso(),
-            "source_system": "Property DNA Projection Engine",
-            "source_id": "DNA-PROJ-8821",
-            "authorization_scope": "property_projections_read"
-        },
-        "timeline_entries": [
-            {
-                "id": "t_01",
-                "date": "2010-06-15",
-                "event": "Roof Installed",
-                "version": "1.0",
-                "truth_classification": "ESTIMATED",
-                "confidence": "MEDIUM",
-                "timestamp": "2010-06-15T00:00:00Z",
-                "source_system": "Austin Appraisal Records",
-                "source_id": "APP-2010-R",
-                "authorization_scope": "property_timeline_read"
-            },
-            {
-                "id": "t_02",
-                "date": "2024-10-05",
-                "event": "Aerial Drone Thermal Scan",
-                "version": "1.1",
-                "truth_classification": "VERIFIED",
-                "confidence": "HIGH",
-                "timestamp": "2024-10-05T14:30:00Z",
-                "source_system": "STRATEX Core Aerial Audit",
-                "source_id": "SCAN-DRONE-2024-X",
-                "authorization_scope": "property_timeline_read"
-            }
-        ],
-        "warranty_metadata": {
-            "warranty_id": "w_002",
-            "type": "Manufacturer Shingle Warranty",
-            "coverage": "30-year limited",
-            "alleged_holder": "Alex Morgan",
-            "version": "1.0.0",
-            "truth_classification": "HOMEOWNER-REPORTED",
-            "confidence": "LOW",
-            "timestamp": now_iso(),
-            "source_system": "Homeowner Conversation Assertions",
-            "source_id": "MEM-CONV-9011",
-            "authorization_scope": "property_warranties_read"
-        },
-        "active_roof_projects": [],
-        "homeowner_goals": [
-            {
-                "goal": "Ensure weather resilience and protect high-value architectural interiors",
-                "truth_classification": "HOMEOWNER-REPORTED",
-                "timestamp": now_iso(),
-                "source_system": "Steward User Profile",
-                "source_id": "GOAL-001",
-                "authorization_scope": "user_preferences_read"
-            }
-        ],
-        "seasonal_context": {
-            "current_season": "Summer",
-            "weather_warning": "Texas high storm/hail vulnerability window (August-October)",
-            "impact": "Deferred action increases risks of sudden violent thunderstorm penetration",
-            "truth_classification": "VERIFIED",
-            "timestamp": now_iso(),
-            "source_system": "Stratex Seasonal Intel Service",
-            "source_id": "SEASONAL-AUSTIN-2026",
-            "authorization_scope": "environmental_conditions_read"
-        }
-    }
-    
+    correlation_id = str(uuid.uuid4())
+
+    # H-013 Batch 2 (#5, Phase 4): property context is served ONLY through the
+    # versioned, read-only Passport Projection Adapter. Habitat never reads Core/
+    # Passport collections directly. In PRODUCTION this fails safe (503) when the
+    # authorized projection endpoint is unavailable - it never substitutes demo/
+    # test data. In development/demo it returns clearly labeled (authoritative:false)
+    # projected data; in test mode it uses deterministic fixtures.
     try:
-        # H-013 #4: this demo projection is fixture-derived; gate + tag it so it
-        # is never mistaken for canonical Passport truth. The real versioned
-        # Passport projection boundary lands in H-013 Batch 2.
-        return fx.serve_fixture(context_payload, "property_context_projection")
-    except FixtureDisabledError as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        return passport_projection.build_context("stratex-habitat", pid, correlation_id)
+    except passport_projection.ProjectionError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.to_dict(correlation_id))
 
 # ---------------------------------------------------------------------------
 # Task 4: Homeowner Question Experience
@@ -577,52 +483,11 @@ async def get_readiness(user: dict = Depends(get_steward_user)):
     if user["email"] != "alex@stratexhabitat.com":
         raise HTTPException(status_code=403, detail="Tenant access restricted")
     
-    # 65/100 readiness score due to two missing items: deck condition (blocks!) & shingle warranty
-    readiness_payload = {
-        "project_readiness_score": 65,
-        "max_score": 100,
-        "classification": "PLANNING_STAGE_ONLY (Unpublished)",
-        "priority_checklist": [
-            {
-                "item": "Property Information", "status": "COMPLETE", "score": 10,
-                "why": "Standard boundaries and location confirmed.", "verified_by": "Austin County GIS Records",
-                "blocks_publication": False
-            },
-            {
-                "item": "Roof Geometry takeoff", "status": "COMPLETE", "score": 10,
-                "why": "3D Mesh takeoff calculated 3,200 sq ft.", "verified_by": "STRATEX Digital Twin Core",
-                "blocks_publication": False
-            },
-            {
-                "item": "Photos & Thermal Imagery", "status": "COMPLETE", "score": 10,
-                "why": "North Slope and South Slope photogrammetry synced.", "verified_by": "2024 Aerial Drone Audit",
-                "blocks_publication": False
-            },
-            {
-                "item": "Tear-off & Access conditions", "status": "COMPLETE", "score": 10,
-                "why": "Confirmed standard 2-story perimeter access for trucks.", "verified_by": "STRATEX Core Site Survey",
-                "blocks_publication": False
-            },
-            {
-                "item": "Existing Deck & Underlayment Condition", "status": "MISSING", "score": 0,
-                "why": "Concealed North Slope deflection and thermal anomaly indicate potential decking rot which must be audited.",
-                "verified_by": "Licensed Inspector via core drill OR Contractor during site review",
-                "blocks_publication": True
-            },
-            {
-                "item": "Shingle Warranty Verification", "status": "UNVERIFIED", "score": 5,
-                "why": "Manufacturer GAF warranty certificate is unuploaded.",
-                "verified_by": "Homeowner upload of physical warranty papers",
-                "blocks_publication": False
-            },
-            {
-                "item": "Permit & HOA considerations", "status": "COMPLETE", "score": 10,
-                "why": "Standard Austin zoning and Villa Horizon HOA materials confirmed.", "verified_by": "Zoning Database Sync",
-                "blocks_publication": False
-            }
-        ]
-    }
-    return readiness_payload
+    # H-013 Batch 2 (Phase 5): readiness classification is owned by the backend
+    # policy module (HARD_BLOCKER / CONDITIONAL_BLOCKER / WARNING / INFORMATIONAL_GAP).
+    # The frontend renders this; it does NOT decide blocking behavior. Default
+    # (no acknowledgments) keeps the deck condition as a publication blocker.
+    return readiness_policy.assess()
 
 # ---------------------------------------------------------------------------
 # Task 11: Contractor Package Preview

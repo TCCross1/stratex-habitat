@@ -716,6 +716,11 @@ api_router.include_router(steward_router)
 from projects import projects_router
 api_router.include_router(projects_router)
 
+# H-013 Batch 2: persistent Steward workflow (projection boundary, publication gates)
+from workflow import workflow_router
+import workflow as workflow_module
+api_router.include_router(workflow_router)
+
 app.include_router(api_router)
 app.add_middleware(CORSMiddleware, allow_credentials=True,
                    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
@@ -732,6 +737,10 @@ async def startup():
     except Exception as e:
         logger.error(f"Storage init failed: {e}")
     await seed_data()
+    try:
+        await workflow_module.init_indexes(db)
+    except Exception as e:
+        logger.error(f"Workflow index init failed: {e}")
 
 
 @app.on_event("shutdown")

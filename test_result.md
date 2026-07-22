@@ -178,6 +178,51 @@ backend:
           agent: "main"
           comment: "9 unit tests (price-book provenance, fixture gate incl production-disabled, redaction preview/approved) all pass."
 
+  - task: "H-013 Batch 2 #5 Versioned read-only Passport projection boundary (adapter + provider modes)"
+    implemented: true
+    working: true
+    file: "backend/passport_projection.py, backend/steward.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "GET /steward/context now served ONLY via PassportProjectionAdapter. Dev mode returns authoritative:false + provider_mode + contract_version 1.0.0 + seed id, preserving legacy keys. Production fails safe (503) when HABITAT_PROJECTION_BASE_URL unset (no fixture fallback) - proven by 14 unit tests. Contract/tenant/property/schema validation + stale detection."
+        - working: true
+          agent: "testing"
+          comment: "✓ VERIFIED: GET /api/steward/context returns HTTP 200 with complete _projection envelope: provider_mode=='development', authoritative==false, contract_version=='1.0.0', fixture_or_seed_identifier=='dev-seed-roof-2026.07', generated_at present. All required top-level keys present: property_identity (with id captured), published_explanation, property_dna_projection, seasonal_context. Passport projection boundary working correctly."
+
+  - task: "H-013 Batch 2 Phase 5 Build-Ready blocker policy (HARD/CONDITIONAL/WARNING/INFORMATIONAL)"
+    implemented: true
+    working: true
+    file: "backend/readiness_policy.py, backend/steward.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "GET /steward/readiness now policy-driven. Deck condition = CONDITIONAL_BLOCKER (blocks until acknowledged). Backward-compatible: score 65, deck status MISSING, blocks_publication true. 6 unit tests."
+        - working: true
+          agent: "testing"
+          comment: "✓ VERIFIED: GET /api/steward/readiness returns HTTP 200 with project_readiness_score==65. 'Existing Deck & Underlayment Condition' item found with classification=='CONDITIONAL_BLOCKER', status=='MISSING', blocks_publication==true. Build-Ready blocker policy working correctly."
+
+  - task: "H-013 Batch 2 Phases 6-10 Persistent Steward workflow + publication gate + idempotency + audit + indexes"
+    implemented: true
+    working: true
+    file: "backend/workflow.py, backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "steward_workflows collection + explicit state machine + optimistic concurrency (version) + idempotency replay. Publish gate recomputes readiness server-side (client cannot bypass), blocks on unresolved hard/unacknowledged conditional, requires approval+project+estimate+package+redaction; atomic single-publish claim prevents double publish; compensating rollback if audit/opportunity persistence fails. Immutable audit_events. Indexes ensured at startup. 10 unit tests + full HTTP smoke (create->journey->blocked->ack->publish->idempotent replay->resume->cancel->expiry->contractor 403) PASS."
+        - working: true
+          agent: "testing"
+          comment: "✓ VERIFIED ALL 11 WORKFLOW LIFECYCLE STEPS: (1) POST /api/steward/workflow creates workflow with current_state==QUESTION_RECEIVED, version==1. (2) Successfully transitioned through all 9 states (CONTEXT_RESOLVED, ANSWER_PRESENTED, ACTION_RECOMMENDED, ACTION_CONFIRMED, PROJECT_CREATED, ESTIMATE_CREATED with material 'GAF Timberline HDZ', SCENARIOS_REVIEWED, READINESS_REVIEWED, PACKAGE_PREVIEWED). After ESTIMATE_CREATED: estimate_snapshot.price_book_version=='2026.07.0'. After PACKAGE_PREVIEWED: contractor_package_version present, redaction_settings.remove_personal_info==true. (3) Illegal transition to QUESTION_RECEIVED correctly blocked with 409 ILLEGAL_TRANSITION. (4) Premature publish without acknowledging deck correctly blocked with 409 PUBLICATION_BLOCKED, blocking_item_ids contains 'RDY-DECK-CONDITION'. (5) POST /acknowledge with item_id 'RDY-DECK-CONDITION' returns 200, acknowledged_blockers contains it. (6) POST /transition to PUBLICATION_APPROVED returns 200. (7) POST /publish with approval:true returns 200, status=='published', opportunity_id captured. (8) Idempotent replay with same idempotency_key 'k1' returns 200, idempotent_replay==true, same opportunity_id (no duplicate). (9) GET /workflow/{id} returns 200, current_state==OPPORTUNITY_PUBLISHED. (10) New workflow cancelled returns 200, current_state==CANCELLED. (11) Workflow with expires_in_seconds=0 returns 200, current_state==EXPIRED. SECURITY: Contractor GET /steward/workflow returns 403, GET /steward/workflow/{id} returns 403. Unauthenticated requests return 401. Anti-bypass test: client cannot bypass readiness with fabricated fields - server recomputes readiness and still blocks with 409 PUBLICATION_BLOCKED. REGRESSION: All Batch 1 + H-012 endpoints working (fixture, estimate, contractor-package, ask). Complete workflow lifecycle with publication gates, idempotency, and security isolation working perfectly."
+
 frontend:
   - task: "H-013 Batch 1 regression — Home Steward UI (/steward) still works after backend security-gate changes"
     implemented: true
@@ -197,16 +242,49 @@ frontend:
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 2
+  test_sequence: 3
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "H-013 Batch 2 Phases 6-10 Persistent Steward workflow + publication gate + idempotency + audit + indexes"
+    - "H-013 Batch 2 #5 Versioned read-only Passport projection boundary (adapter + provider modes)"
+    - "H-013 Batch 2 Phase 5 Build-Ready blocker policy (HARD/CONDITIONAL/WARNING/INFORMATIONAL)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
+    - agent: "main"
+      message: >
+        H-013 BATCH 2 backend complete — verify over HTTP as homeowner alex@stratexhabitat.com / Demo123!.
+        DO NOT modify env vars (do not toggle HABITAT_PROJECTION_MODE / HABITAT_ENV / HABITAT_ENABLE_FIXTURES on the live server).
+        (A) PROJECTION BOUNDARY: GET /api/steward/context -> 200 with _projection.provider_mode=='development',
+        _projection.authoritative==false, _projection.contract_version=='1.0.0', and still contains property_identity,
+        published_explanation, property_dna_projection, seasonal_context.
+        (B) READINESS POLICY: GET /api/steward/readiness -> 200, project_readiness_score==65, item 'Existing Deck & Underlayment
+        Condition' classification=='CONDITIONAL_BLOCKER', status=='MISSING', blocks_publication==true.
+        (C) WORKFLOW LIFECYCLE (base path /api/steward/workflow):
+          1. POST {} (or {"property_id":<pid from /context property_identity.id>}) -> 200 current_state QUESTION_RECEIVED, version 1.
+          2. POST /{id}/transition advancing in order: CONTEXT_RESOLVED, ANSWER_PRESENTED, ACTION_RECOMMENDED,
+             ACTION_CONFIRMED, PROJECT_CREATED, ESTIMATE_CREATED (body material 'GAF Timberline HDZ'),
+             SCENARIOS_REVIEWED, READINESS_REVIEWED, PACKAGE_PREVIEWED -> each 200 with matching current_state.
+          3. Illegal transition (e.g. to_state 'QUESTION_RECEIVED' now) -> 409 error_code ILLEGAL_TRANSITION.
+          4. POST /{id}/publish {approval:true, property_id:pid, idempotency_key:'k1'} BEFORE acknowledging deck
+             -> 409 error_code PUBLICATION_BLOCKED with 'RDY-DECK-CONDITION' in blocking_item_ids.
+          5. POST /{id}/acknowledge {item_id:'RDY-DECK-CONDITION'} -> 200.
+          6. POST /{id}/transition to_state PUBLICATION_APPROVED -> 200.
+          7. POST /{id}/publish {approval:true, property_id:pid, idempotency_key:'k1'} -> 200 status 'published' with opportunity_id.
+          8. Repeat publish with same idempotency_key -> 200 idempotent_replay true, SAME opportunity_id (no duplicate).
+          9. GET /{id} -> 200 current_state OPPORTUNITY_PUBLISHED (resume).
+          10. Create another workflow, POST /{id}/cancel -> 200 current_state CANCELLED.
+          11. Create workflow with body {"property_id":pid,"expires_in_seconds":0} then GET /{id} -> 200 current_state EXPIRED.
+        (D) SECURITY: contractor horizon@stratexhabitat.com GET /api/steward/workflow and GET /api/steward/workflow/{homeowner_id}
+            -> 403 (or 404). Unauthenticated -> 401. Frontend-supplied readiness cannot bypass: publish gate recomputes readiness
+            from server-side acknowledged_blockers only.
+        (E) REGRESSION: Batch 1 still works - GET /api/steward/fixture (is_fixture true), POST /api/steward/estimate
+            (price_book_version 2026.07.0), GET /api/steward/contractor-package (no PII in preview), plus H-012 ask/recommendation/
+            scenarios/confirm/publish/memory.
     - agent: "main"
       message: >
         Batch 1 backend changes complete. Please verify (homeowner alex@stratexhabitat.com / Demo123!):
@@ -264,3 +342,45 @@ agent_communication:
         
         No console errors, no critical network failures. H-013 Batch 1 UI fully functional.
 
+
+    - agent: "testing"
+      message: >
+        ✅ H-013 BATCH 2 COMPLETE - ALL TESTS PASSED (23/23):
+        
+        A) PASSPORT PROJECTION BOUNDARY: ✓ PASS
+        - GET /api/steward/context returns 200 with complete _projection envelope
+        - provider_mode=='development', authoritative==false, contract_version=='1.0.0'
+        - fixture_or_seed_identifier=='dev-seed-roof-2026.07', generated_at present
+        - All required top-level keys present: property_identity, published_explanation, property_dna_projection, seasonal_context
+        
+        B) BUILD-READY BLOCKER POLICY: ✓ PASS
+        - GET /api/steward/readiness returns 200 with project_readiness_score==65
+        - 'Existing Deck & Underlayment Condition' item: classification=='CONDITIONAL_BLOCKER', status=='MISSING', blocks_publication==true
+        
+        C) WORKFLOW LIFECYCLE (11 steps): ✓ PASS
+        - C.1: Workflow creation with QUESTION_RECEIVED state, version 1
+        - C.2: All 9 state transitions successful (CONTEXT_RESOLVED → ANSWER_PRESENTED → ACTION_RECOMMENDED → ACTION_CONFIRMED → PROJECT_CREATED → ESTIMATE_CREATED → SCENARIOS_REVIEWED → READINESS_REVIEWED → PACKAGE_PREVIEWED)
+        - C.2: estimate_snapshot.price_book_version=='2026.07.0', contractor_package_version present, redaction_settings.remove_personal_info==true
+        - C.3: Illegal transition correctly blocked with 409 ILLEGAL_TRANSITION
+        - C.4: Premature publish correctly blocked with 409 PUBLICATION_BLOCKED, blocking_item_ids contains 'RDY-DECK-CONDITION'
+        - C.5: Acknowledgment of RDY-DECK-CONDITION successful
+        - C.6: Transition to PUBLICATION_APPROVED successful
+        - C.7: Publish with approval successful, status=='published', opportunity_id captured
+        - C.8: Idempotent replay with same idempotency_key returns idempotent_replay==true, same opportunity_id (no duplicate)
+        - C.9: Resume workflow returns current_state==OPPORTUNITY_PUBLISHED
+        - C.10: Cancel workflow returns current_state==CANCELLED
+        - C.11: Expiry workflow returns current_state==EXPIRED
+        
+        D) SECURITY / ISOLATION: ✓ PASS
+        - Contractor GET /steward/workflow returns 403
+        - Contractor GET /steward/workflow/{id} returns 403
+        - Unauthenticated requests return 401
+        - Anti-bypass: client cannot bypass readiness with fabricated fields - server recomputes and blocks with 409 PUBLICATION_BLOCKED
+        
+        E) REGRESSION (Batch 1 + H-012): ✓ PASS
+        - GET /api/steward/fixture returns 200, is_fixture==true
+        - POST /api/steward/estimate returns 200, price_book_version=='2026.07.0', price_provenance.price_source=='HABITAT_GOVERNED_PRICE_BOOK'
+        - GET /api/steward/contractor-package returns 200, no raw PII leaked, shared_documents only contains doc_01
+        - POST /api/steward/ask: valid roof question returns 200 with all levels, non-roof question returns 400
+        
+        Backend is production-ready for H-013 Batch 2 deployment. All Passport projection boundary, Build-Ready blocker policy, persistent workflow lifecycle with publication gates, idempotency, security isolation, and regression tests passed.
