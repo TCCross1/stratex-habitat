@@ -246,6 +246,7 @@ class TransitionReq(BaseModel):
     redaction_settings: Optional[dict] = None
     recommended_action: Optional[str] = None
     investment_scenario_ref: Optional[str] = None
+    readiness_overrides: Optional[dict] = None  # non-production only (deterministic HARD_BLOCKER testing)
 
 
 class AckReq(BaseModel):
@@ -463,7 +464,12 @@ async def transition_workflow(wf_id: str, body: TransitionReq,
     elif to_state == S_SCENARIOS_REVIEWED:
         set_fields["investment_scenario_ref"] = body.investment_scenario_ref or str(uuid.uuid4())
     elif to_state == S_READINESS_REVIEWED:
-        assessment = readiness_policy.assess(wf.get("acknowledged_blockers"))
+        overrides = None
+        # test-only hook: readiness overrides are honored ONLY outside production
+        if body.readiness_overrides and projection.resolve_mode() != projection.MODE_PRODUCTION:
+            overrides = body.readiness_overrides
+            set_fields["readiness_overrides"] = overrides
+        assessment = readiness_policy.assess(wf.get("acknowledged_blockers"), overrides)
         set_fields["readiness_assessment"] = assessment
         set_fields["readiness_ref"] = str(uuid.uuid4())
         audit_event = "READINESS_ASSESSED"
@@ -509,7 +515,7 @@ async def acknowledge_blocker(wf_id: str, body: AckReq,
 
     acks = set(wf.get("acknowledged_blockers") or [])
     acks.add(body.item_id)
-    new_assessment = readiness_policy.assess(acks)
+    new_assessment = readiness_policy.assess(acks, wf.get("readiness_overrides"))
     res = await db[COLLECTION].update_one(
         {"id": wf["id"], "version": wf["version"]},
         {"$set": {"acknowledged_blockers": sorted(acks), "readiness_assessment": new_assessment,
@@ -550,31 +556,90 @@ def _build_opportunity(wf: dict, user: dict):
 
 
 @workflow_router.post("/{wf_id}/publish")
-async def publish_workflow(wf_id: str, body: PublishReq,
-                           user: dict = Depends(get_steward_user), db=Depends(get_db)):
-    _require_homeowner(user)
-    wf = await _load(db, wf_id, user)
+async def create_prepared_workflow(db, user, *, property_id, design_project_ref,
+                                   acknowledged_blockers=None, material=None,
+                                   redaction_settings=None, readiness_overrides=None):
+    """Compatibility factory for the legacy publish wrapper.
+
+    Persists a workflow already at PACKAGE_PREVIEWED with server-computed refs so
+    the legacy POST /steward/publish can route through the ONE governed
+    publication service. Homeowner acknowledgments must be supplied explicitly.
+    """
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    est = pricebook.planning_estimate(material or pricebook.default_roof_material(), basis="local")
+    created = now_iso()
+    expires_at = (datetime.now(timezone.utc) + timedelta(hours=_ttl_hours())).isoformat()
+    overrides = None
+    if readiness_overrides and projection.resolve_mode() != projection.MODE_PRODUCTION:
+        overrides = readiness_overrides
+    wf = {
+        "id": str(uuid.uuid4()), "tenant_id": TENANT_ID, "property_id": property_id,
+        "homeowner_id": user["id"], "current_state": S_PACKAGE_PREVIEWED, "version": 1,
+        "correlation_id": str(uuid.uuid4()),
+        "question": "Do I need a new roof?",
+        "context_projection_ref": None, "context_projection_version": None,
+        "steward_response_ref": None, "recommended_action": "Explore Roof Replacement",
+        "confirmation_event_id": str(uuid.uuid4()), "confirmation_idempotency_key": None,
+        "design_project_ref": design_project_ref or str(uuid.uuid4()),
+        "estimate_snapshot": {
+            "material": est["material"], "range": est["range"], "range_display": est["range_display"],
+            "price_book_version": est["provenance"]["price_book_version"],
+            "provenance": est["provenance"], "snapshot_at": created},
+        "investment_scenario_ref": str(uuid.uuid4()),
+        "readiness_ref": str(uuid.uuid4()),
+        "readiness_assessment": readiness_policy.assess(acknowledged_blockers, overrides),
+        "acknowledged_blockers": sorted(set(acknowledged_blockers or [])),
+        "readiness_overrides": overrides,
+        "contractor_package_version": f"cp-{uuid.uuid4().hex[:12]}",
+        "redaction_settings": redaction_settings or {"remove_personal_info": True},
+        "publication_approval": None, "publication_idempotency_key": None,
+        "opportunity_ref": None, "create_idempotency_key": None,
+        "processed_idempotency_keys": [], "cancelled": False, "cancel_reason": None,
+        "created_at": created, "updated_at": created, "expires_at": expires_at,
+        "origin": "legacy_publish_wrapper",
+        "state_history": [{"state": S_QUESTION_RECEIVED, "at": created},
+                          {"state": S_PACKAGE_PREVIEWED, "at": created}],
+    }
+    await db[COLLECTION].insert_one(wf)
+    await write_audit(db, "STEWARD_WORKFLOW_CREATED", user, wf, after_state=S_PACKAGE_PREVIEWED,
+                      extra={"origin": "legacy_publish_wrapper"})
+    return wf
+
+
+async def governed_publish_service(db, user, wf, *, approval, idempotency_key,
+                                   property_id=None, expected_version=None):
+    """THE single authoritative publication policy + implementation path.
+
+    Both POST /steward/workflow/{id}/publish AND the legacy compatibility wrapper
+    POST /steward/publish route through here. No other code path may create a
+    published Project Opportunity. Readiness is ALWAYS recomputed server-side.
+    """
     corr = wf.get("correlation_id")
 
     # idempotent publication replay
-    already = (body.idempotency_key and wf.get("publication_idempotency_key") == body.idempotency_key
+    already = (idempotency_key and wf.get("publication_idempotency_key") == idempotency_key
                and wf.get("opportunity_ref")) or \
               (wf["current_state"] == S_OPPORTUNITY_PUBLISHED and wf.get("opportunity_ref"))
     if already:
         await write_audit(db, "DUPLICATE_REQUEST_REJECTED", user, wf, correlation_id=corr,
                           extra={"kind": "publish_replay", "opportunity_id": wf.get("opportunity_ref")})
-        return {"status": "published", "idempotent_replay": True,
+        return {"status": "published", "idempotent_replay": True, "correlation_id": corr,
                 "opportunity_id": wf["opportunity_ref"], "workflow": _public(wf)}
     if wf["current_state"] in TERMINAL_STATES:
         raise HTTPException(status_code=409, detail={"error_code": "TERMINAL_STATE",
                             "message": f"Workflow is terminal ({wf['current_state']})."})
 
-    # server-authoritative readiness recomputation (client cannot bypass)
-    readiness = readiness_policy.assess(wf.get("acknowledged_blockers"))
+    # server-authoritative readiness recomputation (client CANNOT bypass)
+    readiness = readiness_policy.assess(wf.get("acknowledged_blockers"), wf.get("readiness_overrides"))
     ok, blocking, reasons, remediation = evaluate_publication_gate(
-        wf, approval=body.approval, property_id=body.property_id, readiness=readiness)
+        wf, approval=approval, property_id=property_id, readiness=readiness)
 
     if not ok:
+        if readiness.get("unresolved_hard_blocker_ids"):
+            await write_audit(db, "HARD_BLOCKER_DETECTED", user, wf, correlation_id=corr,
+                              before_state=wf["current_state"],
+                              extra={"ids": readiness["unresolved_hard_blocker_ids"]})
         await write_audit(db, "PUBLICATION_BLOCKED", user, wf, correlation_id=corr,
                           before_state=wf["current_state"],
                           extra={"blocking_item_ids": blocking, "reasons": reasons})
@@ -586,9 +651,9 @@ async def publish_workflow(wf_id: str, body: PublishReq,
             "correlation_id": corr,
         })
 
-    if body.expected_version is not None and body.expected_version != wf["version"]:
+    if expected_version is not None and expected_version != wf["version"]:
         raise HTTPException(status_code=409, detail={"error_code": "STALE_VERSION",
-                            "message": f"expected_version {body.expected_version} != current {wf['version']}.",
+                            "message": f"expected_version {expected_version} != current {wf['version']}.",
                             "correlation_id": corr})
 
     opp_id, opp = _build_opportunity(wf, user)
@@ -598,7 +663,7 @@ async def publish_workflow(wf_id: str, body: PublishReq,
         {"id": wf["id"], "version": wf["version"], "opportunity_ref": None,
          "current_state": {"$in": [S_PACKAGE_PREVIEWED, S_PUBLICATION_APPROVED]}},
         {"$set": {"current_state": S_OPPORTUNITY_PUBLISHED, "opportunity_ref": opp_id,
-                  "publication_idempotency_key": body.idempotency_key,
+                  "publication_idempotency_key": idempotency_key,
                   "publication_approval": {"approved": True, "at": now_iso(), "actor": user.get("email")},
                   "updated_at": now_iso()},
          "$inc": {"version": 1},
@@ -608,7 +673,7 @@ async def publish_workflow(wf_id: str, body: PublishReq,
         if current and current.get("opportunity_ref"):
             await write_audit(db, "DUPLICATE_REQUEST_REJECTED", user, current, correlation_id=corr,
                               extra={"kind": "publish_race_lost", "opportunity_id": current.get("opportunity_ref")})
-            return {"status": "published", "idempotent_replay": True,
+            return {"status": "published", "idempotent_replay": True, "correlation_id": corr,
                     "opportunity_id": current["opportunity_ref"], "workflow": _public(current)}
         raise HTTPException(status_code=409, detail={"error_code": "STALE_VERSION",
                             "message": "Publication lost the concurrency race; reload and retry.",
@@ -622,7 +687,6 @@ async def publish_workflow(wf_id: str, body: PublishReq,
                           entity_refs={"opportunity_id": opp_id, "design_project_ref": wf.get("design_project_ref")})
         await db.quotes.insert_one(opp)
     except Exception as e:
-        # compensating rollback -> recoverable, opportunity not finalized
         await db[COLLECTION].update_one(
             {"id": wf["id"]},
             {"$set": {"current_state": S_FAILED_RECOVERABLE, "opportunity_ref": None,
@@ -635,6 +699,16 @@ async def publish_workflow(wf_id: str, body: PublishReq,
     final = await db[COLLECTION].find_one({"id": wf["id"]})
     return {"status": "published", "opportunity_id": opp_id, "correlation_id": corr,
             "workflow": _public(final)}
+
+
+@workflow_router.post("/{wf_id}/publish")
+async def publish_workflow(wf_id: str, body: PublishReq,
+                           user: dict = Depends(get_steward_user), db=Depends(get_db)):
+    _require_homeowner(user)
+    wf = await _load(db, wf_id, user)
+    return await governed_publish_service(
+        db, user, wf, approval=body.approval, idempotency_key=body.idempotency_key,
+        property_id=body.property_id, expected_version=body.expected_version)
 
 
 @workflow_router.post("/{wf_id}/cancel")

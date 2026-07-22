@@ -567,90 +567,64 @@ class PublishOpportunityReq(BaseModel):
     budget_preference: str = "Competitive"
     shared_document_ids: List[str] = []
     remove_personal_info: bool = True
+    acknowledged_blockers: List[str] = []       # homeowner acknowledgments (e.g. site verification)
+    readiness_overrides: Optional[dict] = None   # non-production only (deterministic testing)
+
 
 @steward_router.post("/publish")
 async def publish_opportunity(body: PublishOpportunityReq, user: dict = Depends(get_steward_user), db = Depends(get_db)):
+    """LEGACY-COMPATIBLE publication (H-013 Batch 2A).
+
+    This route is now a thin COMPATIBILITY WRAPPER over the SINGLE governed
+    publication service (workflow.governed_publish_service) - the same
+    implementation used by POST /steward/workflow/{id}/publish. There is exactly
+    ONE authoritative backend publication policy/path. This route no longer
+    bypasses the readiness / redaction / approval gate; the deck CONDITIONAL
+    blocker must be acknowledged (acknowledged_blockers) to publish.
+    """
     if user["email"] != "alex@stratexhabitat.com":
         raise HTTPException(status_code=403, detail="Tenant access restricted")
-    
-    opp_id = str(uuid.uuid4())
-    correlation_id = str(uuid.uuid4())
-    timestamp = now_iso()
-    
-    # Save published Opportunity in the database
-    published_opportunity = {
-        "id": opp_id,
-        "correlation_id": correlation_id,
-        "property_id": body.property_id,
-        "design_scenario_id": body.scenario_id,
-        "owner_id": user["id"],
-        "title": "Villa Horizon — Roof Replacement",
-        "status": "published",
-        "timeline_preference": body.timeline_preference,
-        "budget_preference": body.budget_preference,
-        "shared_document_ids": body.shared_document_ids,
-        "personal_info_redacted": body.remove_personal_info,
-        "created_at": timestamp,
-        "estimate_version": "2026.1",
-        "matching_preferences": {
-            "preferred_trades": ["Roofing", "Renovation"],
-            "max_matching_distance_miles": 35
-        },
-        "homeowner_approval": {
-            "approved": True,
-            "timestamp": timestamp,
-            "ip_address": "127.0.0.1",
-            "audit_method": "STeward Vertical Slice Explicit Confirmation Toggle"
-        }
-    }
-    
-    # Save audit entry
-    audit_entry = {
-        "id": str(uuid.uuid4()),
-        "correlation_id": correlation_id,
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    import workflow  # local import avoids a circular import at module load time
+
+    idem = f"legacy-{body.property_id}-{body.scenario_id}"
+
+    # cross-call idempotency: repeated legacy publish for same property+scenario -> same opportunity
+    prior = await db[workflow.COLLECTION].find_one(
+        {"publication_idempotency_key": idem, "opportunity_ref": {"$ne": None}})
+    if prior:
+        await workflow.write_audit(db, "DUPLICATE_REQUEST_REJECTED", user, prior,
+                                   extra={"kind": "legacy_publish_replay",
+                                          "opportunity_id": prior["opportunity_ref"]})
+        return {"status": "published", "idempotent_replay": True,
+                "opportunity_id": prior["opportunity_ref"],
+                "correlation_id": prior.get("correlation_id"), "workflow_id": prior["id"],
+                "audit": {"event_type": "PROJECT_OPPORTUNITY_PUBLISHED",
+                          "opportunity_id": prior["opportunity_ref"], "workflow_id": prior["id"],
+                          "details": {"referenced_passport_and_dna": True, "governed_publication": True}}}
+
+    wf = await workflow.create_prepared_workflow(
+        db, user, property_id=body.property_id, design_project_ref=body.scenario_id,
+        acknowledged_blockers=body.acknowledged_blockers,
+        redaction_settings={"remove_personal_info": body.remove_personal_info},
+        readiness_overrides=body.readiness_overrides)
+
+    result = await workflow.governed_publish_service(
+        db, user, wf, approval=True, idempotency_key=idem, property_id=body.property_id)
+
+    result["workflow_id"] = wf["id"]
+    result["audit"] = {
         "event_type": "PROJECT_OPPORTUNITY_PUBLISHED",
-        "homeowner_id": user["id"],
-        "property_id": body.property_id,
-        "opportunity_id": opp_id,
-        "timestamp": timestamp,
-        "details": {
-            "referenced_passport_and_dna": True,
-            "design_scenario_version": 1,
-            "contractor_direct_contact_restricted": True
-        }
+        "correlation_id": result.get("correlation_id"),
+        "homeowner_id": user["id"], "property_id": body.property_id,
+        "opportunity_id": result.get("opportunity_id"), "workflow_id": wf["id"],
+        "details": {"referenced_passport_and_dna": True, "governed_publication": True,
+                    "publication_path": "governed_shared_service",
+                    "contractor_direct_contact_restricted": True},
     }
-    
-    if db is not None:
-        await db.quotes.insert_one({
-            "id": opp_id,
-            "owner_id": user["id"],
-            "owner_name": "Alex M." if body.remove_personal_info else user["name"],
-            "property_id": body.property_id,
-            "property_name": "Villa Horizon",
-            "title": "Published: Roof Replacement",
-            "category": "Roofing",
-            "project_type": "renovation",
-            "description": "Exterior Roof Replacement Opportunity prepopulated with 3D mesh takeoff.",
-            "seriousness": "high",
-            "target_timeframe": body.timeline_preference,
-            "status": "open",
-            "is_opportunity": True,
-            "created_at": timestamp,
-            "contractor_responses": [],
-            "routed_to": []
-        })
-        await db.audit_events.insert_one(audit_entry)
-        
-    audit_entry.pop("_id", None)
-    published_opportunity.pop("_id", None)
-    
-    return {
-        "status": "published",
-        "opportunity_id": opp_id,
-        "correlation_id": correlation_id,
-        "opportunity": published_opportunity,
-        "audit": audit_entry
-    }
+    return result
 
 # ---------------------------------------------------------------------------
 # Task 13: Home Memory Behavior
