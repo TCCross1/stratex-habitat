@@ -66,10 +66,48 @@ inactivity → `EXPIRED`, recoverable error → `FAILED_RECOVERABLE` → (retry)
 - **Authority gates:** `PROFESSIONALLY_REVIEWED`, `APPROVED_FOR_BUILD_PACKAGE`, and
   `COMPLETED_AS_BUILT` require Core/professional actors — never Habitat/homeowner alone.
 
-## 5. Reconciliation with existing machines (docs only)
+## 5. Explicit reconciliation of the two workflow/state-machine systems (docs only)
+There are exactly **two** governing systems, with a clear, non-overlapping division of authority.
+No third publication or readiness authority is introduced.
+
+### 5.1 Division of responsibility
+- **Reality Studio Design State Machine (H-014, this document)** governs the *design lifecycle*:
+  `SCAN` → `EXISTING_MODEL` → `DESIGN` → `PRODUCTS` → `ESTIMATE` → `SYSTEMS_IMPACT` →
+  `PROFESSIONAL_REVIEW` → `COMPLETION`. It owns scan, model, design, product selection, estimate,
+  professional review, and completion states.
+- **H-013 Steward Workflow (`backend/workflow.py`, accepted)** governs *homeowner orchestration*:
+  readiness evaluation, contractor **package preview**, publication **approval**, and
+  **Project Opportunity publication**.
+
+### 5.2 Single governed publication authority (mandatory)
+- The H-014 design lifecycle **does not publish**. When a design reaches
+  `CONTRACTOR_PACKAGE_READY`, publication is delegated to the H-013 Steward workflow, which invokes
+  the **single governed publication service** `workflow.governed_publish_service` (readiness
+  recomputed server-side; HARD blockers non-overridable; idempotent; audited).
+- **No third publication authority and no third readiness authority may be created.** Readiness is
+  owned solely by `readiness_policy` via the Steward workflow; the design machine consumes readiness
+  results, it does not compute a parallel gate.
+
+### 5.3 Authority handoff points
+| Design-machine state | Delegates to Steward workflow for |
+|---|---|
+| `BUILD_READY_REVIEW` | readiness evaluation (`readiness_policy`) |
+| `CONTRACTOR_PACKAGE_READY` | contractor package **preview** (redaction) |
+| `CONTRACTOR_PACKAGE_READY → PROJECT_OPPORTUNITY_READY` | publication **approval** + **Project Opportunity publication** via `governed_publish_service` (the one governed path) |
+
+### 5.4 Cross-workflow references (stable IDs + auditable transitions)
+- The two systems are linked only by **stable IDs**: a design project carries `steward_workflow_id`
+  and `correlation_id`; the Steward workflow carries `design_project_ref`. Neither embeds the other's
+  mutable state.
+- Every cross-workflow handoff is an **explicit, auditable transition** emitting an audit event
+  (e.g., `DESIGN_SUBMITTED_FOR_PUBLICATION`, then Steward `PROJECT_OPPORTUNITY_PUBLISHED`) with the
+  shared `correlation_id`, so the end-to-end path is reconstructable from `audit_events`.
+
+### 5.5 Legacy mapping (no code rewrite in this mission)
 - Steward `workflow.py` states map onto the planning→publication segment (`DESIGN_DRAFT` …
   `PROJECT_OPPORTUNITY_READY`). `projects.py` states (IDEA→…→SAVED_TO_PASSPORT) map onto
-  `IDEA_CAPTURED` … `COMPLETED_AS_BUILT`. No code rewrite in this mission; mapping recorded for H-014A.
+  `IDEA_CAPTURED` … `COMPLETED_AS_BUILT`. Reconciliation is implemented in wave **H-014A**; this
+  mission documents it only. The single governed H-013 publication service is reused unchanged.
 
 ## 6. Completion write-back boundary
 - `COMPLETED_AS_BUILT` is the only state that yields canonical truth, and only via a Core/Passport

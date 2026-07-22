@@ -21,6 +21,13 @@ H-014 documents + automated token/claim grep checks over `docs/h014/*.md`.
 | 10 | No unsupported engineering-accuracy claims | **PASS** | Every "survey-grade/engineering-grade" mention is a negation/rejection; default tolerance is PLANNING (grep confirmed). |
 | 11 | No ungoverned AI design authority | **PASS** | AI outputs classified `AI_SUGGESTED_DESIGN`, non-authoritative, governed (Phases 6, 7, 16). |
 | 12 | No missing homeowner-safe projection boundary | **PASS** | Projection boundary reused/extended (Phases 8, 12); layer contract mandates homeowner-safe display + truth labeling. |
+| 13 | Single publication + readiness authority (no third authority) | **PASS** | State Machine §5.2 delegates publication to the one `governed_publish_service`; readiness owned solely by `readiness_policy` via the Steward workflow; cross-workflow links use stable IDs + auditable transitions (§5.4). |
+
+### Re-run (post-final-commit, this evidence check)
+Validation was re-executed after committing the H-014 set and strengthening the state-machine
+reconciliation (§5.1–§5.5). Result unchanged: **13 passed, 0 failed, 0 skipped.** Token/claim greps
+re-confirmed (no canonical-write claims; survey/engineering-grade only negated; 11 truth classes +
+UNKNOWN consistent; `governed_publish_service` referenced only as the single authority).
 
 ## 2. Automated checks executed
 ```
@@ -48,3 +55,4 @@ truth-class token frequency across docs/h014/*.md                        -> all 
 ## Verdict
 **Documentation set is internally consistent and consistent with the accepted H-013 baseline.**
 Ready for General Atlas QC review of the architecture. Not production, not implemented.
+Validation totals: **13 passed, 0 failed, 0 skipped.**
