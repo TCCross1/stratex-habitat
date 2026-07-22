@@ -178,17 +178,30 @@ backend:
           agent: "main"
           comment: "9 unit tests (price-book provenance, fixture gate incl production-disabled, redaction preview/approved) all pass."
 
+frontend:
+  - task: "H-013 Batch 1 regression — Home Steward UI (/steward) still works after backend security-gate changes"
+    implemented: true
+    working: true
+    file: "frontend/src/pages/HomeSteward.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Backend responses kept backward-compatible. UI reads contractorPreview.summary + .shared_documents (unshared doc_02 now correctly hidden). Needs UI regression run through the Steward wizard."
+        - working: true
+          agent: "testing"
+          comment: "✅ COMPLETE UI REGRESSION PASSED (9/9 verification items): (1) Page loads without crash, title 'Habitat Home Steward™' visible. (2) Ask flow: 'Do I need a new roof?' triggers structured 4-level answer (Direct Answer, Why This Matters, Supporting Information, Trace/References). (3) Recommendation renders with primary action 'Schedule a focused roof inspection' and secondary progressive disclosure options. (4) Confirm action 'Explore Roof Replacement' succeeds, advances through confirmation gate to Design Studio. (5) Estimate renders with Austin local cost range ($26,000-$38,000 for DECRA Standing Seam), breakdown (materials/labor/permits/contingency), material selection updates estimate correctly. (6) Investment scenarios A/B/C render with cost text and maintenance implications. (7) Build Ready: readiness score 65 displays, checklist shows 'Existing Deck & Underlayment Condition' flagged as MISSING with 'BLOCKS PUB' indicator. (8) Contractor Package Preview renders with 'Redact personal contact details' toggle (enabled by default), shared documents list shows ONLY drone inspection doc (doc_02 correctly filtered by backend), NO homeowner PII visible in contractor package content (no last name, no email, no phone, no exact address - redaction working correctly). (9) Publish succeeds: 'Project Opportunity Published!' confirmation displays with Correlation ID and 'ACTIVE (Redacted)' status. All wizard steps advance correctly, no console errors, no critical network failures. H-013 Batch 1 security changes fully functional in UI."
+
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 1
+  test_sequence: 2
   run_ui: false
 
 test_plan:
-  current_focus:
-    - "H-013 #9 Backend-enforced contractor-package redaction"
-    - "H-013 #4 Deterministic fixture env-gate + provenance"
-    - "H-013 #7 Governed versioned price-book provider"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -234,4 +247,20 @@ agent_communication:
         - All 8 existing endpoints working: ask, recommendation, scenarios, readiness, confirm, publish, memory
         
         Backend is production-ready for H-013 Batch 1 deployment.
+    - agent: "testing"
+      message: >
+        ✅ UI REGRESSION COMPLETE - ALL 9 ITEMS VERIFIED:
+        
+        Full end-to-end Home Steward wizard tested (alex@stratexhabitat.com):
+        1. ✅ Page loads without crash, title visible
+        2. ✅ Ask flow: "Do I need a new roof?" renders 4-level structured answer
+        3. ✅ Recommendation with primary + secondary options renders
+        4. ✅ Confirm action succeeds, advances to Design Studio
+        5. ✅ Estimate with cost range/breakdown renders, material selection updates estimate
+        6. ✅ Investment scenarios A/B/C render
+        7. ✅ Build Ready: score 65, blocking checklist item present
+        8. ✅ Contractor Package Preview: redaction toggle present, shared docs (doc_01 only), NO PII visible in package content
+        9. ✅ Publish succeeds with opportunity ID and "ACTIVE (Redacted)" status
+        
+        No console errors, no critical network failures. H-013 Batch 1 UI fully functional.
 
