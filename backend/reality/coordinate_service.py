@@ -105,11 +105,20 @@ async def create_frame(db, user, *, property_id, body: dict, correlation_id):
             raise structured(422, "PARENT_FRAME_NOT_FOUND", "parent_frame_id does not exist for this property.")
         if await _would_cycle(db, tenant_id, property_id, frame_id, parent_frame_id):
             raise structured(422, "FRAME_CYCLE", "Coordinate-frame cycle detected.")
+    # Explicit None-only fallback: an omitted/null transform defaults to identity,
+    # but an explicitly supplied (possibly malformed) matrix is preserved so that
+    # validate_transform can reject it rather than silently substituting identity.
+    transform_to_parent = body.get("transform_to_parent")
+    if transform_to_parent is None:
+        transform_to_parent = IDENTITY_4X4
+    transform_to_property = body.get("transform_to_property")
+    if transform_to_property is None:
+        transform_to_property = IDENTITY_4X4
     rec = build_frame_record(
         tenant_id=tenant_id, property_id=property_id,
         frame_type=body["frame_type"], parent_frame_id=parent_frame_id,
-        transform_to_parent=body.get("transform_to_parent", IDENTITY_4X4),
-        transform_to_property=body.get("transform_to_property", IDENTITY_4X4),
+        transform_to_parent=transform_to_parent,
+        transform_to_property=transform_to_property,
         origin_state=body.get("origin_state", "PROVISIONAL"),
         origin_source=body.get("origin_source", "UNKNOWN_SOURCE"),
         orientation_source=body.get("orientation_source"),

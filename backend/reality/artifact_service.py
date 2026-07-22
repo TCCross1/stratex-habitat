@@ -23,6 +23,21 @@ def validate_checksum(value: str) -> None:
         raise structured(422, "INVALID_CHECKSUM", "checksum_sha256 must be 64 lowercase hex chars.")
 
 
+def validate_storage_reference(value: str) -> None:
+    """A client-supplied governed storage reference must be a safe, non-empty,
+    tenant-scoped storage key — never blank, a URL, an absolute path, a signed
+    reference, or a path-traversal string. Prevents silent fallback on bad input
+    and blocks leaking unrestricted object-storage locations."""
+    if not isinstance(value, str) or not value.strip():
+        raise structured(422, "INVALID_STORAGE_REFERENCE",
+                         "storage_object_reference must be a non-empty governed reference.")
+    v = value.strip()
+    if "://" in v or v.startswith("/") or "?" in v or ".." in v or any(ch.isspace() for ch in v):
+        raise structured(422, "INVALID_STORAGE_REFERENCE",
+                         "storage_object_reference must be a governed storage key, "
+                         "not a URL, absolute path, or signed reference.")
+
+
 def build_manifest_record(*, tenant_id, property_id, artifact_type, storage_object_reference,
                           content_type, file_size, checksum_sha256, correlation_id,
                           scan_session_id=None, model_version_id=None, source_artifact_ids=None,
@@ -100,9 +115,16 @@ async def create_manifest(db, user, *, scan_session_id, body: dict, correlation_
             raise structured(422, "CROSS_PROPERTY_ARTIFACT", "source artifact belongs to a different property.")
 
     artifact_id = f"rf-art-{uuid.uuid4()}"
+    # Explicit None-only fallback: omitted/null uses the governed default reference;
+    # an explicitly supplied value is validated (never silently replaced on bad input).
+    storage_object_reference = body.get("storage_object_reference")
+    if storage_object_reference is None:
+        storage_object_reference = f"{enums.TENANT_ID}/reality/{artifact_id}"
+    else:
+        validate_storage_reference(storage_object_reference)
     rec = build_manifest_record(
         tenant_id=tenant_id, property_id=property_id, artifact_type=body["artifact_type"],
-        storage_object_reference=body.get("storage_object_reference", f"{enums.TENANT_ID}/reality/{artifact_id}"),
+        storage_object_reference=storage_object_reference,
         content_type=body.get("content_type", "application/octet-stream"),
         file_size=body.get("file_size", 0), checksum_sha256=body["checksum_sha256"],
         correlation_id=correlation_id, scan_session_id=scan_session_id,

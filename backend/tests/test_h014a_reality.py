@@ -5,6 +5,7 @@ Mix of pure-logic unit tests (fast, cover validation branches) and HTTP
 integration tests (governed lifecycle, authorization, reference-room
 determinism) driven against the live backend + MongoDB via conftest fixtures.
 """
+import json as _json
 import uuid
 
 import pytest
@@ -128,6 +129,19 @@ class TestArtifactChecksum:
         with pytest.raises(HTTPException) as e:
             arts.validate_checksum("nothex")
         assert e.value.detail["error_code"] == "INVALID_CHECKSUM"
+
+
+class TestStorageReferenceValidation:
+    """Focused regression: supplied governed storage references (Defect 2)."""
+    def test_valid_governed_key(self):
+        arts.validate_storage_reference("stratex-habitat/reality/obj-123")  # no raise
+
+    @pytest.mark.parametrize("bad", ["", "   ", "https://x/y", "//host/x", "/abs/path",
+                                     "key with space", "a/../b", "k?sig=1"])
+    def test_invalid_refs_rejected(self, bad):
+        with pytest.raises(HTTPException) as e:
+            arts.validate_storage_reference(bad)
+        assert e.value.detail["error_code"] == "INVALID_STORAGE_REFERENCE"
 
 
 class TestReferenceRoomDeterminism:
@@ -271,6 +285,69 @@ class TestArtifactHTTP:
         assert r.status_code == 422
         assert r.json()["detail"]["error_code"] == "INVALID_CHECKSUM"
 
+    # --- Defect 2 regression: storage_object_reference null-fallback + validation ---
+    def test_storage_ref_omitted_uses_governed_default(self, homeowner_session, api_url, db):
+        sid = self._scan(homeowner_session, api_url)
+        r = homeowner_session.post(_api(api_url, f"/scan-sessions/{sid}/artifacts"),
+                                   json={"artifact_type": "POINT_CLOUD", "checksum_sha256": "a" * 64}, timeout=30)
+        assert r.status_code == 201, r.text
+        aid = r.json()["artifact_id"]
+        assert r.json()["storage_object_reference"] == "<governed-object-store-reference>"
+        doc = db[enums.C_ARTIFACTS].find_one({"id": aid})
+        assert doc["storage_object_reference"] == f"{enums.TENANT_ID}/reality/{aid}"
+
+    def test_storage_ref_explicit_null_uses_governed_default(self, homeowner_session, api_url, db):
+        sid = self._scan(homeowner_session, api_url)
+        r = homeowner_session.post(_api(api_url, f"/scan-sessions/{sid}/artifacts"),
+                                   json={"artifact_type": "POINT_CLOUD", "checksum_sha256": "a" * 64,
+                                         "storage_object_reference": None}, timeout=30)
+        assert r.status_code == 201, r.text
+        aid = r.json()["artifact_id"]
+        doc = db[enums.C_ARTIFACTS].find_one({"id": aid})
+        assert doc["storage_object_reference"] == f"{enums.TENANT_ID}/reality/{aid}"
+
+    def test_storage_ref_valid_supplied_preserved(self, homeowner_session, api_url, db):
+        sid = self._scan(homeowner_session, api_url)
+        supplied = f"{enums.TENANT_ID}/reality/custom-object-key"
+        r = homeowner_session.post(_api(api_url, f"/scan-sessions/{sid}/artifacts"),
+                                   json={"artifact_type": "POINT_CLOUD", "checksum_sha256": "a" * 64,
+                                         "storage_object_reference": supplied}, timeout=30)
+        assert r.status_code == 201, r.text
+        aid = r.json()["artifact_id"]
+        # public response never leaks the raw key ...
+        assert r.json()["storage_object_reference"] == "<governed-object-store-reference>"
+        # ... but the supplied governed key is preserved in storage (no silent fallback)
+        doc = db[enums.C_ARTIFACTS].find_one({"id": aid})
+        assert doc["storage_object_reference"] == supplied
+
+    def test_storage_ref_empty_string_rejected(self, homeowner_session, api_url):
+        sid = self._scan(homeowner_session, api_url)
+        r = homeowner_session.post(_api(api_url, f"/scan-sessions/{sid}/artifacts"),
+                                   json={"artifact_type": "POINT_CLOUD", "checksum_sha256": "a" * 64,
+                                         "storage_object_reference": ""}, timeout=30)
+        assert r.status_code == 422
+        assert r.json()["detail"]["error_code"] == "INVALID_STORAGE_REFERENCE"
+
+    def test_storage_ref_url_rejected(self, homeowner_session, api_url):
+        sid = self._scan(homeowner_session, api_url)
+        r = homeowner_session.post(_api(api_url, f"/scan-sessions/{sid}/artifacts"),
+                                   json={"artifact_type": "POINT_CLOUD", "checksum_sha256": "a" * 64,
+                                         "storage_object_reference": "https://public.example.com/leak?sig=abc"},
+                                   timeout=30)
+        assert r.status_code == 422
+        assert r.json()["detail"]["error_code"] == "INVALID_STORAGE_REFERENCE"
+
+    def test_public_response_hides_internal_storage(self, homeowner_session, api_url, db):
+        sid = self._scan(homeowner_session, api_url)
+        r = homeowner_session.post(_api(api_url, f"/scan-sessions/{sid}/artifacts"),
+                                   json={"artifact_type": "POINT_CLOUD", "checksum_sha256": "a" * 64}, timeout=30)
+        assert r.status_code == 201, r.text
+        body = r.json()
+        aid = body["artifact_id"]
+        internal_ref = db[enums.C_ARTIFACTS].find_one({"id": aid})["storage_object_reference"]
+        assert body["storage_object_reference"] == "<governed-object-store-reference>"
+        assert internal_ref not in _json.dumps(body)
+
 
 class TestModelVersionHTTP:
     def test_existing_model_accept_immutable_then_design(self, homeowner_session, api_url):
@@ -322,3 +399,41 @@ class TestCoordinateFrameHTTP:
                                          "transform_to_parent": [[1, 0, 0], [0, 1, 0], [0, 0, 1]]}, timeout=30)
         assert r.status_code == 422
         assert r.json()["detail"]["error_code"] == "INVALID_MATRIX"
+
+    # --- Defect 1 regression: transform null-fallback + preserved validation ---
+    def test_frame_field_omitted_uses_identity(self, homeowner_session, api_url):
+        r = homeowner_session.post(_api(api_url, f"/properties/{REF}/coordinate-frames"),
+                                   json={"frame_type": "ROOM_FRAME"}, timeout=30)
+        assert r.status_code == 201, r.text
+        assert r.json()["transform_to_parent"] == cs.IDENTITY_4X4
+        assert r.json()["transform_to_property"] == cs.IDENTITY_4X4
+
+    def test_frame_field_explicit_null_uses_identity(self, homeowner_session, api_url):
+        r = homeowner_session.post(_api(api_url, f"/properties/{REF}/coordinate-frames"),
+                                   json={"frame_type": "ROOM_FRAME", "transform_to_parent": None,
+                                         "transform_to_property": None}, timeout=30)
+        assert r.status_code == 201, r.text
+        assert r.json()["transform_to_parent"] == cs.IDENTITY_4X4
+        assert r.json()["transform_to_property"] == cs.IDENTITY_4X4
+
+    def test_frame_valid_matrix_preserved(self, homeowner_session, api_url):
+        m = [[1, 0, 0, 2.5], [0, 1, 0, -1.0], [0, 0, 1, 0.75], [0, 0, 0, 1]]
+        r = homeowner_session.post(_api(api_url, f"/properties/{REF}/coordinate-frames"),
+                                   json={"frame_type": "ROOM_FRAME", "transform_to_parent": m}, timeout=30)
+        assert r.status_code == 201, r.text
+        assert r.json()["transform_to_parent"] == m  # supplied matrix preserved, not defaulted
+
+    def test_frame_empty_list_rejected(self, homeowner_session, api_url):
+        r = homeowner_session.post(_api(api_url, f"/properties/{REF}/coordinate-frames"),
+                                   json={"frame_type": "ROOM_FRAME", "transform_to_parent": []}, timeout=30)
+        assert r.status_code == 422  # no silent fallback to identity
+        assert r.json()["detail"]["error_code"] == "INVALID_MATRIX"
+
+    def test_frame_non_finite_rejected(self, homeowner_session, api_url):
+        # Infinity is not valid JSON; send a raw body so a non-finite value reaches validation.
+        raw = ('{"frame_type": "ROOM_FRAME", "transform_to_parent": '
+               '[[Infinity,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]}')
+        r = homeowner_session.post(_api(api_url, f"/properties/{REF}/coordinate-frames"),
+                                   data=raw, headers={"Content-Type": "application/json"}, timeout=30)
+        assert r.status_code == 422, r.text
+        assert r.json()["detail"]["error_code"] == "NON_FINITE_MATRIX"
