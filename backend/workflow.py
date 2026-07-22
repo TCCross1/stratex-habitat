@@ -380,6 +380,8 @@ async def transition_workflow(wf_id: str, body: TransitionReq,
 
     # idempotent replay
     if body.idempotency_key and body.idempotency_key in (wf.get("processed_idempotency_keys") or []):
+        await write_audit(db, "DUPLICATE_REQUEST_REJECTED", user, wf,
+                          extra={"kind": "transition_replay", "idempotency_key": body.idempotency_key})
         return _public(wf)
 
     if wf["current_state"] in TERMINAL_STATES:
@@ -555,11 +557,12 @@ async def publish_workflow(wf_id: str, body: PublishReq,
     corr = wf.get("correlation_id")
 
     # idempotent publication replay
-    if body.idempotency_key and wf.get("publication_idempotency_key") == body.idempotency_key \
-            and wf.get("opportunity_ref"):
-        return {"status": "published", "idempotent_replay": True,
-                "opportunity_id": wf["opportunity_ref"], "workflow": _public(wf)}
-    if wf["current_state"] == S_OPPORTUNITY_PUBLISHED and wf.get("opportunity_ref"):
+    already = (body.idempotency_key and wf.get("publication_idempotency_key") == body.idempotency_key
+               and wf.get("opportunity_ref")) or \
+              (wf["current_state"] == S_OPPORTUNITY_PUBLISHED and wf.get("opportunity_ref"))
+    if already:
+        await write_audit(db, "DUPLICATE_REQUEST_REJECTED", user, wf, correlation_id=corr,
+                          extra={"kind": "publish_replay", "opportunity_id": wf.get("opportunity_ref")})
         return {"status": "published", "idempotent_replay": True,
                 "opportunity_id": wf["opportunity_ref"], "workflow": _public(wf)}
     if wf["current_state"] in TERMINAL_STATES:
@@ -603,6 +606,8 @@ async def publish_workflow(wf_id: str, body: PublishReq,
     if claim.modified_count != 1:
         current = await db[COLLECTION].find_one({"id": wf["id"]})
         if current and current.get("opportunity_ref"):
+            await write_audit(db, "DUPLICATE_REQUEST_REJECTED", user, current, correlation_id=corr,
+                              extra={"kind": "publish_race_lost", "opportunity_id": current.get("opportunity_ref")})
             return {"status": "published", "idempotent_replay": True,
                     "opportunity_id": current["opportunity_ref"], "workflow": _public(current)}
         raise HTTPException(status_code=409, detail={"error_code": "STALE_VERSION",

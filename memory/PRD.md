@@ -31,6 +31,14 @@ STRATEX HABITAT™ is a separate homeowner + contractor-facing app that handshak
 - Docs: `docs/h013/H013_REPOSITORY_VERIFICATION.md`, `H013_RUNTIME_REPAIR.md`, `H013_WAVE1_BATCH1.md`.
 - **Deferred to Batch 2:** #5 versioned Passport projection boundary, #6 Build-Ready publication-blocker reconciliation, #8 homeowner workflow persistence.
 
+## Implemented (2026-07-22) — H-013 Wave 1, Batch 2 (projection boundary, publication gates, persistent workflow)
+- **Passport projection boundary (#5):** `backend/passport_projection.py` — versioned (`1.0.0`), read-only adapter with production/development/demo/test provider modes. `/steward/context` served via adapter; production fails safe (503) with no fixture fallback. Contract/tenant/property/schema validation + staleness.
+- **Build-Ready blocker policy (Phase 5):** `backend/readiness_policy.py` — HARD/CONDITIONAL/WARNING/INFORMATIONAL; `/steward/readiness` policy-driven (deck = conditional blocker; backward-compatible score 65).
+- **Persistent workflow (Phases 6-10):** `backend/workflow.py` + `steward_workflows` collection — explicit state machine, backend publication gate (server recomputes readiness; client cannot bypass), optimistic concurrency, idempotency replay, atomic single-publish, immutable `audit_events`, indexes ensured at startup. Router at `/api/steward/workflow/*`.
+- **Tests (Phase 11):** 30 new unit tests (projection/readiness/workflow) — total 39 H-013 unit tests pass. Backend testing agent 23/23; frontend regression 9/9.
+- **Docs (Phase 12):** `docs/h013/PASSPORT_PROJECTION_ADAPTER.md`, `PROJECTION_CONTRACT_SCHEMA.md`, `READINESS_BLOCKER_POLICY.md`, `STEWARD_WORKFLOW_STATE.md`, `STEWARD_WORKFLOW_SECURITY.md`, `H013_WAVE1_BATCH2.md`, `H013_BATCH2_RECON.md`.
+- **Honest status:** no real Passport endpoint wired (production proven fail-safe only); legacy `/steward/publish` remains ungated for H-012 compat (governed path = workflow publish); indexes ensured at startup (no production migration executed). Not production-ready/candidate.
+
 ## Backlog
 - **P0 (next):** Wire real STRATEX Core API (replace mock publish/sync) once URL/keys provided; swap Emergent storage → customer AWS S3 with signed URLs + version history.
 - **P1:** Authenticity review queue UI (metadata/URL/screenshot → pending/verified/rejected) influencing external-proof confidence; award/dispute lifecycle on quotes; LLM-generated AI findings; Design Studio + Scenario Planner interactive modeling.
