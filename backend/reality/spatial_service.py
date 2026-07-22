@@ -11,6 +11,15 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def resolve_label(body: dict) -> str:
+    """Explicit None-only default: an omitted/null label falls back to entity_type;
+    an explicitly supplied value (including empty string) is preserved (no silent fallback)."""
+    label = body.get("label")
+    if label is None:
+        label = body.get("entity_type")
+    return label
+
+
 # --- pure relationship validation (unit-testable) ------------------------
 def validate_entity_relationships(entity: dict, parent: dict = None, opening: dict = None) -> None:
     et = entity.get("entity_type")
@@ -129,7 +138,7 @@ async def create_entity(db, user, *, property_id, body: dict, correlation_id):
     entity_id = f"rf-ent-{uuid.uuid4()}"
     rec = build_entity_record(
         tenant_id=tenant_id, property_id=property_id,
-        entity_type=body["entity_type"], label=body.get("label", body["entity_type"]),
+        entity_type=body["entity_type"], label=resolve_label(body),
         coordinate_frame_id=body.get("coordinate_frame_id"),
         truth_classification=truth, source_classification=source,
         confidence=body.get("confidence", "MEDIUM"), correlation_id=correlation_id,

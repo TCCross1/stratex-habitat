@@ -413,3 +413,68 @@ agent_communication:
         NO console errors (only expected 401 on /auth/me). NO critical network failures.
         Backend changes (Passport projection _projection envelope + Build-Ready policy) fully backward-compatible with UI.
         All wizard steps advance correctly. H-013 Batch 2 UI regression PASSED.
+
+
+#====================================================================================================
+# H-014A — Reality Studio shared spatial foundation (Final Closure order)
+#====================================================================================================
+
+h014a_backend:
+  - task: "H-014A Reality Studio backend module (/api/reality/v1) — spatial/frames/scans/artifacts/models + reference room"
+    implemented: true
+    working: true
+    file: "backend/reality/*.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: >
+            Targeted correction + Final Closure Phases 1-3 complete. Phase 1: ownership-safe artifact
+            default storage reference tenant/{authenticated_tenant}/property/{authorized_property}/reality/{server_artifact_id};
+            client tenant/property overrides ignored; cross-tenant 403, cross-property source 422; public
+            view masks raw key to '<governed-object-store-reference>'. Phase 2: nullable-default sweep with
+            explicit `is None` checks across coordinate transforms, artifact content_type/file_size/storage_ref,
+            spatial label, existing-model collections, design proposed_entities/deltas. Phase 3: transform
+            validator rejects inf/-inf/nan; malformed JSON rejected safely (4xx, never 500).
+            Evidence: H-014A focused suite 81 passed; H-013 security/publication/gates 20 passed; full backend
+            191 passed / 1 skipped (pre-existing live-Gemini render). Measured coverage (coverage 7.15.2,
+            server subprocess + in-process unit, combined) reality package 75% line + branch; artifact_service 89%.
+            17 routes registered under /api/reality/v1 (verified against app.routes).
+
+h014a_frontend:
+  - task: "Reality Studio Foundation read-only screen (/reality-foundation) + Home Steward regression"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/pages/RealityStudioFoundation.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: >
+            No frontend files changed in this order. Foundation screen consumes the reference-room bootstrap/view
+            whose response shape is unchanged (backend test_reference_room_view passes: entity_count 12, floor_area
+            29.768, model_state DRAFT_CANDIDATE, artifact storage token). Local screenshot tool could not drive the
+            authenticated SPA flow reliably; delegating Foundation-render + Home Steward regression to testing_agent
+            for real evidence.
+
+test_plan:
+  current_focus:
+    - "Reality Studio Foundation read-only screen (/reality-foundation) + Home Steward regression"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "main"
+      message: >
+        H-014A Final Closure: backend Phases 1-3 implemented + verified (81 H-014A / 191 full backend passed,
+        0 failed, 1 unrelated skip; reality coverage 75%). Requesting FRONTEND-ONLY regression: (1) login as
+        homeowner alex@stratexhabitat.com / Demo123!, open left-nav "Reality Studio (Dev)" (/reality-foundation);
+        verify the page renders the non-authoritative fixture banner, room dimensions (4.88 x 6.10, 29.768 m²),
+        entity_count 12, coordinate frame PROPERTY_FRAME, and the artifact 'storage' row showing the masked token
+        (not a raw path/URL). (2) Home Steward (/steward) still loads for the same user (no regression).
+        Do NOT test backend (already covered). Credentials in /app/memory/test_credentials.md.

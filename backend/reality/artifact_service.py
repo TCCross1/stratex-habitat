@@ -8,10 +8,18 @@ import uuid
 from datetime import datetime, timezone
 
 from . import enums
-from .authz import structured
+from .authz import structured, server_tenant_id
 from .audit_service import write_event
 
 _SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
+DEFAULT_CONTENT_TYPE = "application/octet-stream"
+
+
+def governed_storage_reference(tenant_id: str, property_id: str, artifact_id: str) -> str:
+    """Ownership-safe default object-store key derived ONLY from the authenticated
+    tenant, the authorized property, and the server-generated artifact id. Never a
+    URL, credential, signed URL, public path, or client-supplied override."""
+    return f"tenant/{tenant_id}/property/{property_id}/reality/{artifact_id}"
 
 
 def _now_iso() -> str:
@@ -101,7 +109,9 @@ async def create_manifest(db, user, *, scan_session_id, body: dict, correlation_
     if not session:
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Scan session not found")
-    tenant_id = enums.TENANT_ID
+    # Tenant is ALWAYS server-derived; property is the AUTHORIZED scan-session property.
+    # Neither is taken from the client body (client overrides are ignored/rejected).
+    tenant_id = server_tenant_id()
     property_id = session["property_id"]
     if session.get("tenant_id") != tenant_id:
         raise structured(403, "SCAN_ACCESS_DENIED", "Cross-tenant scan session.")
@@ -115,18 +125,23 @@ async def create_manifest(db, user, *, scan_session_id, body: dict, correlation_
             raise structured(422, "CROSS_PROPERTY_ARTIFACT", "source artifact belongs to a different property.")
 
     artifact_id = f"rf-art-{uuid.uuid4()}"
-    # Explicit None-only fallback: omitted/null uses the governed default reference;
-    # an explicitly supplied value is validated (never silently replaced on bad input).
+    # Explicit None-only fallbacks (omitted/null → governed default; never silent on bad input).
     storage_object_reference = body.get("storage_object_reference")
     if storage_object_reference is None:
-        storage_object_reference = f"{enums.TENANT_ID}/reality/{artifact_id}"
+        storage_object_reference = governed_storage_reference(tenant_id, property_id, artifact_id)
     else:
         validate_storage_reference(storage_object_reference)
+    content_type = body.get("content_type")
+    if content_type is None:
+        content_type = DEFAULT_CONTENT_TYPE
+    file_size = body.get("file_size")
+    if file_size is None:
+        file_size = 0
     rec = build_manifest_record(
         tenant_id=tenant_id, property_id=property_id, artifact_type=body["artifact_type"],
         storage_object_reference=storage_object_reference,
-        content_type=body.get("content_type", "application/octet-stream"),
-        file_size=body.get("file_size", 0), checksum_sha256=body["checksum_sha256"],
+        content_type=content_type,
+        file_size=file_size, checksum_sha256=body["checksum_sha256"],
         correlation_id=correlation_id, scan_session_id=scan_session_id,
         model_version_id=body.get("model_version_id"), source_artifact_ids=source_ids,
         derivation=body.get("derivation"), processor=body.get("processor"),

@@ -1,0 +1,33 @@
+{
+  "summary": "Frontend-only regression for H-014A Reality Studio Foundation. Verified login as homeowner (alex@stratexhabitat.com), SPA navigation via left-nav to /reality-foundation and /steward, and all required data-testid content on the Foundation screen. Ownership-safe artifact storage row shows ONLY the masked governed token '<governed-object-store-reference>' — no raw path, URL, or fixture:// leak. Home Steward regression: /steward loads with property context (Villa Horizon) and no errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "RealityStudioFoundation.js:136 renders `${dims.length} m` from the raw API value (6.1 vs 6.10). Cosmetic only — spec says 6.10 m but numeric equality holds. Consider Number(dims.length).toFixed(2) for parity with the width label."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped per request)", "frontend": "100%"},
+  "test_credentials": "Homeowner: alex@stratexhabitat.com / Demo123! (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "None; used deterministic dev fixture bootstrapped by POST /reality/v1/development/reference-room/bootstrap",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Login via [data-testid=demo-homeowner] quick-login button. SPA nav via text=Reality Studio (Dev) and text=Home Steward AI (no hard reload). Foundation page renders on /reality-foundation with data-testids: reality-foundation-page, reality-foundation-fixture-warning, reality-foundation-dim-width (4.88 m), reality-foundation-dim-length (6.1 m), reality-foundation-dimensions panel contains 29.768 m², reality-foundation-entity-count=12, reality-foundation-coordinate-frames panel contains PROPERTY_FRAME, reality-foundation-model-state=DRAFT_CANDIDATE. reality-foundation-artifact storage row shows literal string '<governed-object-store-reference>' — verified NO leak of http/https/fixture://.",
+  "verified_assertions": {
+    "fixture_warning_visible": true,
+    "dim_width_4_88_m": true,
+    "dim_length_6_10_m_numeric": true,
+    "floor_area_29_768_m2_in_panel": true,
+    "entity_count_12": true,
+    "coordinate_frame_PROPERTY_FRAME": true,
+    "model_state_DRAFT_CANDIDATE": true,
+    "artifact_storage_masked_token": true,
+    "artifact_storage_no_leak_url_or_fixture": true,
+    "steward_loads_with_property_context": true
+  }
+}

@@ -37,9 +37,10 @@ class TestCoordinateTransformValidation:
             cs.validate_transform([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
         assert e.value.detail["error_code"] == "INVALID_MATRIX"
 
-    def test_non_finite(self):
+    @pytest.mark.parametrize("bad", [float("inf"), float("-inf"), float("nan")])
+    def test_non_finite(self, bad):
         m = [r[:] for r in cs.IDENTITY_4X4]
-        m[0][0] = float("inf")
+        m[0][0] = bad
         with pytest.raises(HTTPException) as e:
             cs.validate_transform(m)
         assert e.value.detail["error_code"] == "NON_FINITE_MATRIX"
@@ -294,7 +295,7 @@ class TestArtifactHTTP:
         aid = r.json()["artifact_id"]
         assert r.json()["storage_object_reference"] == "<governed-object-store-reference>"
         doc = db[enums.C_ARTIFACTS].find_one({"id": aid})
-        assert doc["storage_object_reference"] == f"{enums.TENANT_ID}/reality/{aid}"
+        assert doc["storage_object_reference"] == f"tenant/{enums.TENANT_ID}/property/{REF}/reality/{aid}"
 
     def test_storage_ref_explicit_null_uses_governed_default(self, homeowner_session, api_url, db):
         sid = self._scan(homeowner_session, api_url)
@@ -304,7 +305,7 @@ class TestArtifactHTTP:
         assert r.status_code == 201, r.text
         aid = r.json()["artifact_id"]
         doc = db[enums.C_ARTIFACTS].find_one({"id": aid})
-        assert doc["storage_object_reference"] == f"{enums.TENANT_ID}/reality/{aid}"
+        assert doc["storage_object_reference"] == f"tenant/{enums.TENANT_ID}/property/{REF}/reality/{aid}"
 
     def test_storage_ref_valid_supplied_preserved(self, homeowner_session, api_url, db):
         sid = self._scan(homeowner_session, api_url)
@@ -437,3 +438,170 @@ class TestCoordinateFrameHTTP:
                                    data=raw, headers={"Content-Type": "application/json"}, timeout=30)
         assert r.status_code == 422, r.text
         assert r.json()["detail"]["error_code"] == "NON_FINITE_MATRIX"
+
+    def test_malformed_json_rejected_safely(self, homeowner_session, api_url):
+        # Genuinely malformed JSON must be rejected with a 4xx, never a 500. The
+        # transform validator — not permissive JSON parsing — is the contract.
+        r = homeowner_session.post(_api(api_url, f"/properties/{REF}/coordinate-frames"),
+                                   data="{ this is not valid json ",
+                                   headers={"Content-Type": "application/json"}, timeout=30)
+        assert r.status_code in (400, 422), r.text
+        assert r.status_code != 500
+
+
+# ================= PHASE 1: OWNERSHIP-SAFE STORAGE REFERENCE =================
+class TestStorageReferenceOwnership:
+    def _scan(self, s, api_url):
+        return s.post(_api(api_url, f"/properties/{REF}/scan-sessions"),
+                      json={"capture_type": "INTERIOR_LIDAR"}, timeout=30).json()["id"]
+
+    def test_default_ref_uses_tenant_property_and_artifact(self, homeowner_session, api_url, db):
+        sid = self._scan(homeowner_session, api_url)
+        r = homeowner_session.post(_api(api_url, f"/scan-sessions/{sid}/artifacts"),
+                                   json={"artifact_type": "POINT_CLOUD", "checksum_sha256": "a" * 64}, timeout=30)
+        assert r.status_code == 201, r.text
+        aid = r.json()["artifact_id"]
+        doc = db[enums.C_ARTIFACTS].find_one({"id": aid})
+        assert doc["storage_object_reference"] == f"tenant/{enums.TENANT_ID}/property/{REF}/reality/{aid}"
+        assert doc["tenant_id"] == enums.TENANT_ID   # authenticated / server-derived tenant
+        assert doc["property_id"] == REF             # authorized property
+        assert aid in doc["storage_object_reference"]  # server-generated artifact id
+
+    def test_client_tenant_property_override_ignored(self, homeowner_session, api_url, db):
+        sid = self._scan(homeowner_session, api_url)
+        r = homeowner_session.post(_api(api_url, f"/scan-sessions/{sid}/artifacts"),
+                                   json={"artifact_type": "POINT_CLOUD", "checksum_sha256": "a" * 64,
+                                         "tenant_id": "attacker-tenant", "property_id": "attacker-prop"},
+                                   timeout=30)
+        assert r.status_code == 201, r.text
+        doc = db[enums.C_ARTIFACTS].find_one({"id": r.json()["artifact_id"]})
+        assert doc["tenant_id"] == enums.TENANT_ID and doc["property_id"] == REF
+        assert "attacker" not in doc["storage_object_reference"]
+
+    def test_cross_tenant_scan_creation_fails(self, homeowner_session, api_url, db):
+        sid = f"rf-scan-foreign-{uuid.uuid4()}"
+        db[enums.C_SCANS].insert_one({"id": sid, "scan_session_id": sid, "tenant_id": "other-tenant",
+                                      "property_id": REF, "current_state": "CREATED"})
+        r = homeowner_session.post(_api(api_url, f"/scan-sessions/{sid}/artifacts"),
+                                   json={"artifact_type": "POINT_CLOUD", "checksum_sha256": "a" * 64}, timeout=30)
+        assert r.status_code == 403
+        assert r.json()["detail"]["error_code"] == "SCAN_ACCESS_DENIED"
+
+    def test_cross_property_source_artifact_fails(self, homeowner_session, api_url, db):
+        sid = self._scan(homeowner_session, api_url)
+        foreign_art = f"rf-art-foreign-{uuid.uuid4()}"
+        db[enums.C_ARTIFACTS].insert_one({"id": foreign_art, "artifact_id": foreign_art,
+                                          "tenant_id": enums.TENANT_ID, "property_id": "other-prop",
+                                          "artifact_type": "POINT_CLOUD"})
+        r = homeowner_session.post(_api(api_url, f"/scan-sessions/{sid}/artifacts"),
+                                   json={"artifact_type": "MESH", "checksum_sha256": "a" * 64,
+                                         "source_artifact_ids": [foreign_art]}, timeout=30)
+        assert r.status_code == 422
+        assert r.json()["detail"]["error_code"] == "CROSS_PROPERTY_ARTIFACT"
+
+    def test_public_response_exposes_only_governed_token(self, homeowner_session, api_url, db):
+        sid = self._scan(homeowner_session, api_url)
+        r = homeowner_session.post(_api(api_url, f"/scan-sessions/{sid}/artifacts"),
+                                   json={"artifact_type": "POINT_CLOUD", "checksum_sha256": "a" * 64}, timeout=30)
+        body = r.json()
+        internal = db[enums.C_ARTIFACTS].find_one({"id": body["artifact_id"]})["storage_object_reference"]
+        assert body["storage_object_reference"] == "<governed-object-store-reference>"
+        assert internal not in _json.dumps(body)
+
+
+# ============ PHASE 2: NULLABLE-DEFAULT SWEEP (content_type/file_size) ============
+class TestArtifactDefaultsHTTP:
+    def _create(self, s, api_url, extra):
+        sid = s.post(_api(api_url, f"/properties/{REF}/scan-sessions"),
+                     json={"capture_type": "INTERIOR_LIDAR"}, timeout=30).json()["id"]
+        payload = {"artifact_type": "POINT_CLOUD", "checksum_sha256": "a" * 64}
+        payload.update(extra)
+        return s.post(_api(api_url, f"/scan-sessions/{sid}/artifacts"), json=payload, timeout=30)
+
+    def test_content_type_omitted_defaults(self, homeowner_session, api_url, db):
+        r = self._create(homeowner_session, api_url, {})
+        assert r.status_code == 201, r.text
+        assert db[enums.C_ARTIFACTS].find_one({"id": r.json()["artifact_id"]})["content_type"] == "application/octet-stream"
+
+    def test_content_type_explicit_null_defaults(self, homeowner_session, api_url, db):
+        r = self._create(homeowner_session, api_url, {"content_type": None})
+        assert r.status_code == 201, r.text
+        assert db[enums.C_ARTIFACTS].find_one({"id": r.json()["artifact_id"]})["content_type"] == "application/octet-stream"
+
+    def test_content_type_valid_preserved(self, homeowner_session, api_url, db):
+        r = self._create(homeowner_session, api_url, {"content_type": "image/png"})
+        assert r.status_code == 201, r.text
+        assert db[enums.C_ARTIFACTS].find_one({"id": r.json()["artifact_id"]})["content_type"] == "image/png"
+
+    def test_content_type_empty_string_preserved_no_fallback(self, homeowner_session, api_url, db):
+        # empty string is a supplied value, NOT None → preserved (no silent fallback)
+        r = self._create(homeowner_session, api_url, {"content_type": ""})
+        assert r.status_code == 201, r.text
+        assert db[enums.C_ARTIFACTS].find_one({"id": r.json()["artifact_id"]})["content_type"] == ""
+
+    def test_file_size_omitted_defaults_zero(self, homeowner_session, api_url, db):
+        r = self._create(homeowner_session, api_url, {})
+        assert r.status_code == 201, r.text
+        assert db[enums.C_ARTIFACTS].find_one({"id": r.json()["artifact_id"]})["file_size"] == 0
+
+    def test_file_size_explicit_null_defaults_zero(self, homeowner_session, api_url, db):
+        r = self._create(homeowner_session, api_url, {"file_size": None})
+        assert r.status_code == 201, r.text
+        assert db[enums.C_ARTIFACTS].find_one({"id": r.json()["artifact_id"]})["file_size"] == 0
+
+    def test_file_size_valid_preserved(self, homeowner_session, api_url, db):
+        r = self._create(homeowner_session, api_url, {"file_size": 99999})
+        assert r.status_code == 201, r.text
+        assert db[enums.C_ARTIFACTS].find_one({"id": r.json()["artifact_id"]})["file_size"] == 99999
+
+
+class TestLabelDefault:
+    """Spatial entity label null-fallback (pure)."""
+    def test_omitted_uses_entity_type(self):
+        assert ss.resolve_label({"entity_type": "WALL"}) == "WALL"
+
+    def test_explicit_null_uses_entity_type(self):
+        assert ss.resolve_label({"entity_type": "WALL", "label": None}) == "WALL"
+
+    def test_valid_preserved(self):
+        assert ss.resolve_label({"entity_type": "WALL", "label": "North Wall"}) == "North Wall"
+
+    def test_empty_string_preserved_no_fallback(self):
+        assert ss.resolve_label({"entity_type": "WALL", "label": ""}) == ""
+
+
+class TestModelVersionDefaultsHTTP:
+    """Existing/design model collection null-fallbacks."""
+    def test_existing_model_omitted_collections_default_empty(self, homeowner_session, api_url):
+        r = homeowner_session.post(_api(api_url, f"/properties/{REF}/existing-models"), json={}, timeout=30)
+        assert r.status_code == 201, r.text
+        b = r.json()
+        assert b["spatial_entity_ids"] == [] and b["source_scan_session_ids"] == []
+        assert b["artifact_ids"] == [] and b["unknown_areas"] == []
+        assert b["truth_summary"] == {} and b["quality_summary"] == {}
+
+    def test_existing_model_explicit_null_collections_default_empty(self, homeowner_session, api_url):
+        r = homeowner_session.post(_api(api_url, f"/properties/{REF}/existing-models"),
+                                   json={"spatial_entity_ids": None, "truth_summary": None,
+                                         "artifact_ids": None, "quality_summary": None,
+                                         "unknown_areas": None, "source_scan_session_ids": None}, timeout=30)
+        assert r.status_code == 201, r.text
+        b = r.json()
+        assert b["spatial_entity_ids"] == [] and b["truth_summary"] == {}
+        assert b["artifact_ids"] == [] and b["quality_summary"] == {}
+        assert b["unknown_areas"] == [] and b["source_scan_session_ids"] == []
+
+    def test_design_model_null_proposed_entities_and_deltas_safe(self, homeowner_session, api_url):
+        mid = homeowner_session.post(_api(api_url, f"/properties/{REF}/existing-models"),
+                                     json={}, timeout=30).json()["id"]
+        homeowner_session.post(_api(api_url, f"/existing-models/{mid}/transition"),
+                               json={"to_state": "QUALITY_REVIEW"}, timeout=30)
+        homeowner_session.post(_api(api_url, f"/existing-models/{mid}/transition"),
+                               json={"to_state": "ACCEPTED"}, timeout=30)
+        r = homeowner_session.post(_api(api_url, f"/properties/{REF}/design-models"),
+                                   json={"base_existing_model_version_id": mid,
+                                         "proposed_entities": None, "deltas": None}, timeout=30)
+        assert r.status_code == 201, r.text
+        b = r.json()
+        assert b["proposed_entities"] == []
+        assert b["deltas"] == {"added": [], "modified": [], "removed": []}

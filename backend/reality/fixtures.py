@@ -127,7 +127,7 @@ def build_reference_records():
     artifact = {
         "id": ARTIFACT, "artifact_id": ARTIFACT, "scan_session_id": None, "model_version_id": EXISTING_MODEL,
         "artifact_type": "FLOOR_PLAN", "storage_provider": "deterministic_fixture",
-        "storage_object_reference": f"fixture://{enums.TENANT_ID}/reality/{ARTIFACT}",
+        "storage_object_reference": f"fixture://tenant/{enums.TENANT_ID}/property/{REF_PROPERTY_ID}/reality/{ARTIFACT}",
         "content_type": "image/svg+xml", "file_size": 2048, "checksum_sha256": FLOORPLAN_CHECKSUM,
         "immutability": "DERIVED", "source_artifact_ids": [], "derivation": {"method": "deterministic_fixture"},
         "processor": "reality-fixtures/1.0.0", "processing_status": "READY", "validation_status": "VALID",

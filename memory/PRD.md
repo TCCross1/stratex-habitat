@@ -60,6 +60,14 @@ STRATEX HABITAT™ is a separate homeowner + contractor-facing app that handshak
 - Added 20 focused regression tests (frame + storage-ref, unit + HTTP) in `tests/test_h014a_reality.py`.
 - Validation: 2 orig-fail tests PASS; H-014A suite 59 PASS; H-013 security/publication/gates 20 PASS; full backend 169 PASS / 1 skipped (pre-existing live-Gemini render, unrelated). Local commit `5142c0f`. NOT accepted / NOT production-ready — awaiting General Atlas QC. No Save-to-GitHub, no merge to main.
 
+## Implemented (2026-06) — H-014A Final Closure (Phases 1-6)
+- **Phase 1 (ownership-safe storage ref):** artifact default = `tenant/{authenticated_tenant}/property/{authorized_property}/reality/{server_artifact_id}` via `server_tenant_id()` + authorized scan property; client tenant/property overrides ignored; cross-tenant 403, cross-property source 422; `public_view` masks raw key to `<governed-object-store-reference>` (no URL/credential/signed-URL/bucket-path leak).
+- **Phase 2 (nullable-default sweep):** explicit `is None` fallbacks (never `value or default`) across coordinate transforms, artifact `content_type`/`file_size`/`storage_object_reference`, spatial `label` (→ entity_type), existing-model collections (→ []/{}), design `proposed_entities`/`deltas`. Full field decision table in `docs/h014a/H014A_COMPLETION_REPORT.md`.
+- **Phase 3:** transform validator rejects `inf`/`-inf`/`nan` (unit); malformed JSON rejected safely (4xx, never 500).
+- **Phase 4:** 12 `docs/h014a/H014A_*.md` documents; PRD + test_result.md updated.
+- **Phase 5/6:** 17 routes registered; H-014A 81 PASS / full backend 191 PASS, 1 unrelated skip, 0 fail; measured coverage (coverage 7.15.2, server subprocess + in-process unit, combined) reality package **75% line + branch**, artifact_service 89%.
+- Files changed vs `5142c0f`: `reality/artifact_service.py`, `reality/model_version_service.py`, `reality/spatial_service.py`, `reality/fixtures.py`, `tests/test_h014a_reality.py` + docs. NOT accepted / NOT production-ready — awaiting General Atlas QC. No LiDAR, no 3D editor, no Save-to-GitHub, no merge to main.
+
 ## Backlog
 - **P0 (next):** Wire real STRATEX Core API (replace mock publish/sync) once URL/keys provided; swap Emergent storage → customer AWS S3 with signed URLs + version history.
 - **P1:** Authenticity review queue UI (metadata/URL/screenshot → pending/verified/rejected) influencing external-proof confidence; award/dispute lifecycle on quotes; LLM-generated AI findings; Design Studio + Scenario Planner interactive modeling.

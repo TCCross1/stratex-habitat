@@ -28,7 +28,26 @@ def content_hash(entity_refs, frame_version, artifact_refs) -> str:
 # --- Existing model versions ---------------------------------------------
 async def create_existing_model(db, user, *, property_id, body: dict, correlation_id):
     tenant_id = enums.TENANT_ID
-    entity_refs = body.get("spatial_entity_ids", [])
+    # Explicit None-only fallbacks (omitted/null collection fields → governed empty default).
+    entity_refs = body.get("spatial_entity_ids")
+    if entity_refs is None:
+        entity_refs = []
+    source_scan_session_ids = body.get("source_scan_session_ids")
+    if source_scan_session_ids is None:
+        source_scan_session_ids = []
+    artifact_ids = body.get("artifact_ids")
+    if artifact_ids is None:
+        artifact_ids = []
+    truth_summary = body.get("truth_summary")
+    if truth_summary is None:
+        truth_summary = {}
+    quality_summary = body.get("quality_summary")
+    if quality_summary is None:
+        quality_summary = {}
+    unknown_areas = body.get("unknown_areas")
+    if unknown_areas is None:
+        unknown_areas = []
+    coordinate_frame_version = body.get("coordinate_frame_version", 1)
     # No proposed-only entity may enter an existing-model snapshot.
     if entity_refs:
         cur = db[enums.C_SPATIAL].find(
@@ -49,17 +68,17 @@ async def create_existing_model(db, user, *, property_id, body: dict, correlatio
     rec = {
         "id": mid, "existing_model_version_id": mid,
         "tenant_id": tenant_id, "property_id": property_id,
-        "source_scan_session_ids": body.get("source_scan_session_ids", []),
+        "source_scan_session_ids": source_scan_session_ids,
         "spatial_entity_ids": entity_refs,
-        "coordinate_frame_version": body.get("coordinate_frame_version", 1),
-        "artifact_ids": body.get("artifact_ids", []),
-        "truth_summary": body.get("truth_summary", {}),
-        "quality_summary": body.get("quality_summary", {}),
-        "unknown_areas": body.get("unknown_areas", []),
+        "coordinate_frame_version": coordinate_frame_version,
+        "artifact_ids": artifact_ids,
+        "truth_summary": truth_summary,
+        "quality_summary": quality_summary,
+        "unknown_areas": unknown_areas,
         "model_state": enums.EM_DRAFT_CANDIDATE,
         "accepted_at": None, "accepted_by": None,
         "previous_version_id": body.get("previous_version_id"),
-        "content_hash": content_hash(entity_refs, body.get("coordinate_frame_version", 1), body.get("artifact_ids", [])),
+        "content_hash": content_hash(entity_refs, coordinate_frame_version, artifact_ids),
         "immutable": False,
         "version": 1,
         "correlation_id": correlation_id,
@@ -126,8 +145,16 @@ async def create_design_model(db, user, *, property_id, body: dict, correlation_
                          "Design model must be created on an ACCEPTED existing-model version.",
                          base_state=base["model_state"])
 
+    # Explicit None-only fallbacks (omitted/null → governed empty defaults).
+    proposed_entities = body.get("proposed_entities")
+    if proposed_entities is None:
+        proposed_entities = []
+    deltas = body.get("deltas")
+    if deltas is None:
+        deltas = {"added": [], "modified": [], "removed": []}
+
     # Proposed deltas: any inline proposed entities must be design classes (never restricted).
-    for pe in body.get("proposed_entities", []):
+    for pe in proposed_entities:
         tc = pe.get("truth_classification", enums.PROPOSED_DESIGN)
         assert_truth_promotion_allowed(tc, "N/A")
         if tc not in enums.DESIGN_CLASSES:
@@ -140,8 +167,8 @@ async def create_design_model(db, user, *, property_id, body: dict, correlation_
         "id": did, "design_model_version_id": did,
         "tenant_id": tenant_id, "property_id": property_id,
         "base_existing_model_version_id": base_id,
-        "proposed_entities": body.get("proposed_entities", []),
-        "deltas": body.get("deltas", {"added": [], "modified": [], "removed": []}),
+        "proposed_entities": proposed_entities,
+        "deltas": deltas,
         "design_state": enums.DM_DRAFT,
         "created_by": user.get("id"),
         "previous_design_version_id": body.get("previous_design_version_id"),
