@@ -85,10 +85,12 @@ final class H014B3DeviceValidationTests: XCTestCase {
         run.guardianFinalVerdict = "PASS"
         run.candidateModelState = "DRAFT_CANDIDATE"
         run.passFailStatus = "PENDING_MANUAL_GATES"
+        run.observedDefects = ["api_key=should-not-appear"]
         let md = ValidationEvidenceRedactor.markdownSummary(run)
         XCTAssertTrue(md.contains("DRAFT_CANDIDATE"))
-        XCTAssertTrue(md.contains("redacted"))
-        XCTAssertFalse(ValidationEvidenceRedactor.containsProhibitedContent(md.replacingOccurrences(of: "redacted", with: "")))
+        XCTAssertTrue(md.lowercased().contains("redacted"))
+        XCTAssertFalse(md.contains("should-not-appear"))
+        XCTAssertFalse(md.contains("api_key="))
     }
 
     func testNoAutomaticTruthAcceptanceInEvidenceDefaults() {
