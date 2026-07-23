@@ -124,7 +124,7 @@ export const CENTRAL_KENTUCKY_DEMO_HOME = Object.freeze({
   dataOrigin: "demo",
   truthStatus: "sample_only",
   displayName: "Central Kentucky Demonstration Home",
-  regionLabel: "Central Kentucky (sample)",
+  regionLabel: "Lexington, Kentucky",
   // Illustrative only — not captured facts
   sampleCharacteristics: Object.freeze({
     approximateSqFtRange: "2,600–3,400",

@@ -43,7 +43,7 @@ function KpiCard({ label, value, sub, subColor, children, testid }) {
 }
 
 export default function DigitalTwin() {
-  const { property, analytics, findings, pid } = useAppData();
+  const { property, analytics, pid } = useAppData();
   const device = useDevice();
   const [layers, setLayers] = useState({ Thermal: true, "Energy Flow": true, "Water Flow": false,
     Structural: true, Electrical: true, Plumbing: false, HVAC: true, Roofing: true });
@@ -51,25 +51,30 @@ export default function DigitalTwin() {
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [showLayers, setShowLayers] = useState(!device.isPhone);
 
-  const assets = useQuery({ queryKey: ["assets", pid],
+  // Assets remain available for future non-demo projections; demo twin prefers empty Inspector.
+  useQuery({ queryKey: ["assets", pid],
     queryFn: async () => (await api.get(`/properties/${pid}/assets`)).data, enabled: !!pid });
-  const quotes = useQuery({ queryKey: ["quotes"], queryFn: async () => (await api.get("/quotes")).data });
 
   if (!property) return <div className="p-8 text-[#71717a]">Loading digital twin…</div>;
 
   const demoViz = getCentralKentuckyDemoVisualization({
     propertyId: property.id || "demo-central-kentucky-home",
   });
-
-  const roofAsset = assets.data?.[0];
-  const roofFinding =
-    findings?.find((f) => f.asset_id === roofAsset?.id && f.price_high > 0) ||
-    findings?.find((f) => f.price_high > 0) || findings?.[0];
-  const roofQuote = quotes.data?.find((q) => q.finding_id === roofFinding?.id && q.contractor_responses?.length);
+  const isDemoProperty =
+    property.is_demo_fixture === true ||
+    property.visualization_data_origin === "demo" ||
+    property.visualization_truth_status === "sample_only" ||
+    property.visualization_profile === "central-kentucky-demo-home" ||
+    !property.visualization_profile; // default Habitat twin to KY demo contract
 
   const inspector = (
-    <Inspector asset={roofAsset} finding={roofFinding} quote={roofQuote}
-      onClose={() => setInspectorOpen(false)} />
+    <Inspector
+      asset={null}
+      finding={null}
+      quote={null}
+      demoMode={Boolean(isDemoProperty)}
+      onClose={() => setInspectorOpen(false)}
+    />
   );
 
   return (

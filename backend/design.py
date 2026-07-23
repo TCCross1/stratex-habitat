@@ -201,7 +201,15 @@ PRESET_SCENARIOS = [
 async def seed_design(db):
     if await db.design_products.count_documents({}) == 0:
         await db.design_products.insert_many(products())
-    prop = await db.properties.find_one({"name": "Villa Horizon"}, {"_id": 0, "id": 1, "owner_id": 1})
+    prop = await db.properties.find_one(
+        {"$or": [
+            {"is_demo_fixture": True},
+            {"visualization_profile": "central-kentucky-demo-home"},
+            {"name": "Central Kentucky Demonstration Home"},
+            {"name": "Villa Horizon"},  # legacy seed name during transition
+        ]},
+        {"_id": 0, "id": 1, "owner_id": 1},
+    )
     if not prop:
         return
     pid = prop["id"]

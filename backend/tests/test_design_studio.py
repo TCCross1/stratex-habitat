@@ -54,7 +54,7 @@ class TestDesignData:
 
     def test_property_base(self, homeowner_session, api_url):
         props = homeowner_session.get(f"{api_url}/properties").json()
-        pid = next(p["id"] for p in props if p["name"] == "Villa Horizon")
+        pid = next(p["id"] for p in props if p.get("is_demo_fixture") is True or p.get("visualization_profile") == "central-kentucky-demo-home" or p["name"] in ("Central Kentucky Demonstration Home", "Villa Horizon"))
         r = homeowner_session.get(f"{api_url}/design/property/{pid}/base")
         assert r.status_code == 200, r.text
         data = r.json()
@@ -63,7 +63,7 @@ class TestDesignData:
 
     def test_preset_scenarios_6(self, homeowner_session, api_url):
         props = homeowner_session.get(f"{api_url}/properties").json()
-        pid = next(p["id"] for p in props if p["name"] == "Villa Horizon")
+        pid = next(p["id"] for p in props if p.get("is_demo_fixture") is True or p.get("visualization_profile") == "central-kentucky-demo-home" or p["name"] in ("Central Kentucky Demonstration Home", "Villa Horizon"))
         r = homeowner_session.get(f"{api_url}/design/scenarios", params={"property_id": pid})
         assert r.status_code == 200, r.text
         scs = r.json()
@@ -89,7 +89,7 @@ class TestScenarioCRUD:
     @pytest.fixture(scope="class")
     def pid(self, homeowner_session, api_url):
         props = homeowner_session.get(f"{api_url}/properties").json()
-        return next(p["id"] for p in props if p["name"] == "Villa Horizon")
+        return next(p["id"] for p in props if p.get("is_demo_fixture") is True or p.get("visualization_profile") == "central-kentucky-demo-home" or p["name"] in ("Central Kentucky Demonstration Home", "Villa Horizon"))
 
     def test_create_scenario_persists(self, homeowner_session, api_url, pid):
         payload = {
@@ -155,7 +155,7 @@ class TestScenarioCRUD:
 class TestScenarioRequestQuote:
     def test_request_quote_from_preset(self, homeowner_session, contractor_session, api_url):
         props = homeowner_session.get(f"{api_url}/properties").json()
-        pid = next(p["id"] for p in props if p["name"] == "Villa Horizon")
+        pid = next(p["id"] for p in props if p.get("is_demo_fixture") is True or p.get("visualization_profile") == "central-kentucky-demo-home" or p["name"] in ("Central Kentucky Demonstration Home", "Villa Horizon"))
         scs = homeowner_session.get(f"{api_url}/design/scenarios", params={"property_id": pid}).json()
         preset = next(s for s in scs if s.get("is_preset") and s["name"] == "Modern Charcoal Siding")
         sid = preset["id"]
@@ -189,7 +189,7 @@ class TestScenarioRequestQuote:
 
     def test_contractor_cannot_request_design_quote(self, contractor_session, homeowner_session, api_url):
         props = homeowner_session.get(f"{api_url}/properties").json()
-        pid = next(p["id"] for p in props if p["name"] == "Villa Horizon")
+        pid = next(p["id"] for p in props if p.get("is_demo_fixture") is True or p.get("visualization_profile") == "central-kentucky-demo-home" or p["name"] in ("Central Kentucky Demonstration Home", "Villa Horizon"))
         scs = homeowner_session.get(f"{api_url}/design/scenarios", params={"property_id": pid}).json()
         sid = next(s for s in scs if s.get("is_preset"))["id"]
         r = contractor_session.post(f"{api_url}/design/scenarios/{sid}/request-quote",
@@ -203,7 +203,7 @@ class TestScenarioRequestQuote:
 class TestDesignRender:
     def test_render_returns_url(self, homeowner_session, api_url):
         props = homeowner_session.get(f"{api_url}/properties").json()
-        pid = next(p["id"] for p in props if p["name"] == "Villa Horizon")
+        pid = next(p["id"] for p in props if p.get("is_demo_fixture") is True or p.get("visualization_profile") == "central-kentucky-demo-home" or p["name"] in ("Central Kentucky Demonstration Home", "Villa Horizon"))
         base = homeowner_session.get(f"{api_url}/design/property/{pid}/base").json()
         body = {
             "property_id": pid,

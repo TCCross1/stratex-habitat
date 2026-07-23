@@ -15,10 +15,17 @@ export default function SectionNav({ onNavigate }) {
 
   const displayName =
     property?.habitat_display_name ||
+    (property?.is_demo_fixture || property?.visualization_data_origin === "demo"
+      ? CENTRAL_KENTUCKY_DEMO_HOME.displayName
+      : property?.name) ||
     CENTRAL_KENTUCKY_DEMO_HOME.displayName;
   const displayLocation =
-    property?.location?.includes("Central Kentucky")
-      ? property.location
+    property?.is_demo_fixture ||
+    property?.visualization_data_origin === "demo" ||
+    property?.visualization_profile === "central-kentucky-demo-home" ||
+    (property?.location || "").includes("Lexington") ||
+    (property?.location || "").includes("Central Kentucky")
+      ? (property?.location?.includes("Lexington") ? property.location : CENTRAL_KENTUCKY_DEMO_HOME.regionLabel)
       : CENTRAL_KENTUCKY_DEMO_HOME.regionLabel;
   const thumbSrc =
     property?.thumbnail?.startsWith("/property-visualizations/")
