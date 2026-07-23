@@ -103,16 +103,18 @@ function IsoRoom({ dims }) {
 }
 
 /* ============================ Reference Room (H-014A) ============================ */
-function ReferenceRoomView() {
-  const [data, setData] = useState(null);
+function ReferenceRoomView({ cache, setCache }) {
+  const [data, setData] = useState(cache);
   const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!cache);
 
   useEffect(() => {
+    if (cache) return;
     (async () => {
       try {
         const res = await api.post("/reality/v1/development/reference-room/bootstrap");
         setData(res.data);
+        setCache(res.data);
       } catch (e) {
         setError(formatApiError(e.response?.data?.detail) || e.message);
       } finally {
@@ -166,7 +168,7 @@ function ReferenceRoomView() {
           <Row k="immutable" v={String(em.immutable)} />
           <Row k="coverage" v={em.quality_summary?.coverage_state || "—"} />
           <Row k="mean_confidence" v={em.quality_summary?.mean_confidence || "—"} />
-          <Row k="version" v={em.version} />
+          <Row k="version" v={em.version ?? "—"} />
         </Panel>
 
         <Panel title="Entity inventory" icon={Box} testid="reality-foundation-entity-counts">
@@ -258,16 +260,18 @@ function FindingRow({ f }) {
   );
 }
 
-function CaptureReviewView() {
-  const [data, setData] = useState(null);
+function CaptureReviewView({ cache, setCache }) {
+  const [data, setData] = useState(cache);
   const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!cache);
 
   useEffect(() => {
+    if (cache) return;
     (async () => {
       try {
         const res = await api.post("/reality/v1/development/capture-proof/bootstrap");
         setData(res.data);
+        setCache(res.data);
       } catch (e) {
         setError(formatApiError(e.response?.data?.detail) || e.message);
       } finally {
@@ -384,7 +388,7 @@ function CaptureReviewView() {
                         {cand.model_state || "—"}</span>}>
           <Row k="version_id" v={cand.existing_model_version_id?.slice(0, 24) || "—"} />
           <Row k="immutable" v={String(cand.immutable)} />
-          <Row k="entity_count" v={data.entity_count} testid="reality-capture-entity-count" />
+          <Row k="entity_count" v={cand.entity_count ?? data.entity_count} testid="reality-capture-entity-count" />
           <div className="mt-3">
             <div className="text-xs text-[#71717a] font-mono mb-2">truth classifications</div>
             <div className="flex flex-wrap gap-2">
@@ -423,6 +427,8 @@ function CaptureReviewView() {
 /* ================================ Page shell ================================ */
 export default function RealityStudioFoundation() {
   const [tab, setTab] = useState("reference");
+  const [refCache, setRefCache] = useState(null);
+  const [capCache, setCapCache] = useState(null);
   const TabBtn = ({ id, label }) => (
     <button
       data-testid={`reality-tab-${id}`}
@@ -453,7 +459,9 @@ export default function RealityStudioFoundation() {
         <TabBtn id="capture" label="Capture Review" />
       </div>
 
-      {tab === "reference" ? <ReferenceRoomView /> : <CaptureReviewView />}
+      {tab === "reference"
+        ? <ReferenceRoomView cache={refCache} setCache={setRefCache} />
+        : <CaptureReviewView cache={capCache} setCache={setCapCache} />}
     </div>
   );
 }
