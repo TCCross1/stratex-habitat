@@ -22,6 +22,9 @@ remote/baseline note). **Baseline foundation:** accepted H-014A + H-014A.1.
 | 10 | [H014B_CI_AND_TESTING.md](./H014B_CI_AND_TESTING.md) | 12–13 |
 | 11 | [H014B_EXECUTION_REPORT.md](./H014B_EXECUTION_REPORT.md) | 14–15 |
 
+**Follow-on:** [H-014B.3 Physical Device Validation](../h014b3/H014B3_INDEX.md) —
+host app + evidence harness for real LiDAR pilots (not H-014C).
+
 ## Truth boundary (applies everywhere)
 A completed capture yields ONLY a **`DRAFT_CANDIDATE`** existing-model with
 `MEASURED_EXISTING` geometry. It is **never** auto-promoted to `VERIFIED_EXISTING`

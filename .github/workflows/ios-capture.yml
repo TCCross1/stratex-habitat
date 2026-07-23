@@ -120,3 +120,24 @@ jobs:
             echo "RoomPlan/ARKit compile references:"
             head -20 /tmp/roomplan-compile-refs.txt
           fi
+
+      - name: Compile H-014B.3 host app for iOS Simulator SDK
+        working-directory: ios/StratexRealityCaptureApp
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project StratexRealityCaptureApp.xcodeproj \
+            -scheme StratexRealityCaptureApp \
+            -destination 'generic/platform=iOS Simulator' \
+            -sdk iphonesimulator \
+            -derivedDataPath .build/DerivedData-app \
+            CODE_SIGNING_ALLOWED=NO \
+            build | tee /tmp/xcodebuild-app.log
+          # Host must link the package RoomPlan path (not a stub-only app).
+          if ! find .build/DerivedData-app -type f -path '*RoomCaptureCoordinator*' | tee /tmp/app-roomcapture.txt | grep -q .; then
+            echo "FAIL: host app DerivedData missing RoomCaptureCoordinator artifacts" >&2
+            tail -80 /tmp/xcodebuild-app.log >&2 || true
+            exit 1
+          fi
+          echo "Host app RoomCaptureCoordinator artifacts:"
+          cat /tmp/app-roomcapture.txt

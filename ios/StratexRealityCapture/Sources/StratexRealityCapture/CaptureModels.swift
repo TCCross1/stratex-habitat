@@ -216,6 +216,9 @@ public struct DerivedOpening: Codable {
     public let type: String   // DOOR | WINDOW | OPENING
     public let wall: String   // North | East | South | West
     public let label: String?
+    public init(type: String, wall: String, label: String? = nil) {
+        self.type = type; self.wall = wall; self.label = label
+    }
 }
 
 public struct DerivedStructure: Codable {
@@ -231,5 +234,12 @@ public struct DerivedStructure: Codable {
         case dimensionsM = "dimensions_m"
         case hasFloor = "has_floor"
         case hasCeiling = "has_ceiling"
+    }
+    public init(roomLabel: String? = nil, dimensionsM: [String: Double],
+                hasFloor: Bool, hasCeiling: Bool,
+                openings: [DerivedOpening] = [], unknowns: [String] = []) {
+        self.roomLabel = roomLabel; self.dimensionsM = dimensionsM
+        self.hasFloor = hasFloor; self.hasCeiling = hasCeiling
+        self.openings = openings; self.unknowns = unknowns
     }
 }
