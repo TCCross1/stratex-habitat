@@ -10,6 +10,8 @@ C_SCANS = "reality_scan_sessions"
 C_ARTIFACTS = "reality_artifact_manifests"
 C_EXISTING = "reality_existing_model_versions"
 C_DESIGN = "reality_design_model_versions"
+# H-014A.2: DB-backed transition idempotency (unique per scan_session_id + key)
+C_SCAN_TRANSITION_IDEMPOTENCY = "reality_scan_transition_idempotency"
 
 # --- Truth classifications (Phase 4) -------------------------------------
 VERIFIED_EXISTING = "VERIFIED_EXISTING"

@@ -1,8 +1,11 @@
 # H-014A — Completion Report
 
 **Executive status:** H-014A shared spatial foundation implemented, corrected (Final Closure
-Phases 1–6), and verified. **NOT** General-Atlas-accepted, **NOT** production-ready. No real LiDAR,
-no 3D editor, no unapproved SDKs. No Save-to-GitHub, no merge to main. Awaiting Atlas QC.
+Phases 1–6), hardened (H-014A.1), and closed for Atlas security/lifecycle conditions (H-014A.2).
+**NOT** General-Atlas-accepted, **NOT** production-ready. No real LiDAR, no 3D editor, no
+unapproved SDKs. No merge to main. Awaiting Atlas QC of H-014A.2 evidence.
+
+See also: `H014A_2_SECURITY_AND_LIFECYCLE_CLOSURE.md`.
 
 ## 1. Repository & branch
 Monorepo `/app` (no git remote configured — local only). Branch

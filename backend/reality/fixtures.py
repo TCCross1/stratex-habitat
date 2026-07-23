@@ -13,6 +13,7 @@ from . import enums
 from .authz import REF_PROPERTY_ID
 from .coordinate_service import IDENTITY_4X4
 from .audit_service import write_event
+from .geometry_reference import fixture_geometry_reference, public_spatial_entity
 
 FIXTURE_VERSION = "1.0.0"
 SOURCE_LABEL = "reality-reference-room"
@@ -64,7 +65,7 @@ def _entity(entity_id, entity_type, label, parent, tags, *, truth=enums.MEASURED
         "entity_type": entity_type, "label": label,
         "parent_entity_id": parent, "building_id": None,
         "coordinate_frame_id": FRAME_ROOM,
-        "geometry_reference": f"fixture://{entity_id}", "geometry_type": geometry_type,
+        "geometry_reference": fixture_geometry_reference(entity_id), "geometry_type": geometry_type,
         "geometry_version": 1,
         "truth_classification": truth, "confidence": "MEDIUM",
         "units": "METRIC_M", "lifecycle_state": "ACTIVE", "existing_state": enums.EXISTING,
@@ -169,6 +170,10 @@ async def bootstrap(db, user):
         await _upsert(enums.C_FRAMES, fr)
     for e in data["entities"]:
         await _upsert(enums.C_SPATIAL, e)
+        # H-014A.2: normalize geometry_reference form on existing fixture rows
+        # (idempotent bootstrap previously used $setOnInsert only).
+        await db[enums.C_SPATIAL].update_one(
+            {"id": e["id"]}, {"$set": {"geometry_reference": e["geometry_reference"]}})
     await _upsert(enums.C_ARTIFACTS, data["artifact"])
     await _upsert(enums.C_EXISTING, data["existing_model"])
 
@@ -222,5 +227,5 @@ async def assemble_view(db):
         "unknowns": (next((e for e in entities if e["id"] == ROOM), {}) or {}).get("unknowns", []),
         "artifact_manifest": public_view(artifact) if artifact else None,
         "existing_model_version": existing,
-        "entities": entities,
+        "entities": [public_spatial_entity(e) for e in entities],
     }

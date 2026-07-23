@@ -529,7 +529,28 @@ h014a_1_hardening:
             Steward loads with Villa Horizon context. Cosmetic notes only (6.1 vs 6.10; UI renders PROPERTY_FRAME only)
             — out of H-014A.1 scope, not changed.
 
+  - task: "H-014A.2 security and capture-lifecycle closure (geometry refs, production fixture shutdown, non-disclosure, scan idempotency)"
+    implemented: true
+    working: true
+    file: "backend/reality/geometry_reference.py + fixture_provider + scan/indexes/spatial + tests/docs"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: >
+            H-014A.2 on cursor/h014a2-security-closure from 3e4a75c. Geometry refs governed (artifact:/fixture:);
+            production fixtures unconditional off; Reality lookups 404 NOT_FOUND nondisclosure; unique scan create
+            and transition idempotency indexes verified in local Mongo. Evidence: H-014A.2 60 passed; H-014A 111;
+            H-013 security 9; publication/gates/workflow 21; full backend 281 passed / 1 skipped (Gemini render);
+            coverage reality 83%. Audit branch unchanged; main untouched; not production-ready; H-014B not started.
+
 agent_communication:
+    - agent: "main"
+      message: >
+        H-014A.2 security/lifecycle closure complete and self-verified on correction branch only. Awaiting Atlas
+        evidence review. Not production-ready; LiDAR not operational; H-014B not authorized; no merge to main.
     - agent: "main"
       message: >
         H-014A.1 hardening complete and self-verified (backend pytest + reproduced coverage + testing-agent frontend
