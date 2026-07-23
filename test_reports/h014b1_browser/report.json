@@ -1,0 +1,64 @@
+{
+  "assertions": {
+    "home_steward_reachable": true
+  },
+  "screenshots": [
+    "/workspace/test_reports/h014b1_browser/desktop_reference.png",
+    "/workspace/test_reports/h014b1_browser/desktop_capture.png",
+    "/workspace/test_reports/h014b1_browser/mobile_reference.png",
+    "/workspace/test_reports/h014b1_browser/mobile_capture.png",
+    "/workspace/test_reports/h014b1_browser/home_steward.png"
+  ],
+  "errors": [],
+  "viewports": {
+    "desktop": {
+      "name": "desktop",
+      "size": {
+        "width": 1440,
+        "height": 900
+      },
+      "ok": true,
+      "details": {
+        "reference_shell": true,
+        "reference_visible": true,
+        "capture_page": true,
+        "guardian_pass": true,
+        "draft_candidate": true,
+        "not_verified": true,
+        "checksum": true,
+        "readonly_notice": true,
+        "editable_controls": 0,
+        "no_build_ready": true,
+        "no_publish": true,
+        "tab_toggle_back": true
+      }
+    },
+    "mobile": {
+      "name": "mobile",
+      "size": {
+        "width": 390,
+        "height": 844
+      },
+      "ok": true,
+      "details": {
+        "reference_shell": true,
+        "reference_visible": true,
+        "capture_page": true,
+        "guardian_pass": true,
+        "draft_candidate": true,
+        "not_verified": true,
+        "checksum": true,
+        "readonly_notice": true,
+        "editable_controls": 0,
+        "no_build_ready": true,
+        "no_publish": true,
+        "tab_toggle_back": true
+      }
+    }
+  },
+  "summary": {
+    "desktop_ok": true,
+    "mobile_ok": true,
+    "home_steward": true
+  }
+}

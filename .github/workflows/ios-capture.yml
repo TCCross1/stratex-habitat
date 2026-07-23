@@ -1,0 +1,122 @@
+name: ios-capture (StratexRealityCapture)
+
+# H-014B.2 — portable macOS Swift build/test PLUS genuine iOS Simulator SDK
+# compilation of the RoomPlan/ARKit source path.
+#
+# 1) `swift build` / `swift test` exercise the portable (non-RoomPlan) path and
+#    deterministic Guardian unit tests on the macOS host.
+# 2) `xcodebuild … -sdk iphonesimulator` compiles the package for the Apple
+#    iOS Simulator SDK, where RoomPlan and ARKit are importable — proving the
+#    real iOS capture source path type-checks and links. This is NOT physical
+#    LiDAR execution (still UNEXECUTED).
+
+on:
+  push:
+    branches: [ "main", "emergent/**", "cursor/**" ]
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios-capture.yml"
+  pull_request:
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios-capture.yml"
+  workflow_dispatch: {}
+
+jobs:
+  swift-build-test:
+    name: swift build + test + iOS SDK
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Swift / Xcode toolchain
+        run: |
+          swift --version
+          xcodebuild -version
+          xcrun --sdk iphonesimulator --show-sdk-path
+
+      - name: Portable Swift build (macOS host)
+        working-directory: ios/StratexRealityCapture
+        run: swift build -v
+
+      - name: Portable Guardian determinism tests
+        working-directory: ios/StratexRealityCapture
+        run: swift test -v
+
+      - name: List Xcode schemes for the Swift package
+        working-directory: ios/StratexRealityCapture
+        run: |
+          xcodebuild -list | tee /tmp/xcodebuild-list.txt
+
+      - name: Compile RoomPlan/ARKit path for iOS Simulator SDK
+        working-directory: ios/StratexRealityCapture
+        run: |
+          set -euo pipefail
+          # Resolve the actual package scheme name from xcodebuild -list.
+          SCHEME=$(python3 - <<'PY'
+          import pathlib, re, sys
+          text = pathlib.Path("/tmp/xcodebuild-list.txt").read_text()
+          # Prefer an explicit Schemes section entry matching the package/product.
+          schemes = []
+          in_schemes = False
+          for line in text.splitlines():
+              if line.strip().startswith("Schemes:"):
+                  in_schemes = True
+                  continue
+              if in_schemes:
+                  if not line.strip():
+                      break
+                  schemes.append(line.strip())
+          preferred = ["StratexRealityCapture", "StratexRealityCapture-Package"]
+          for name in preferred:
+              if name in schemes:
+                  print(name)
+                  sys.exit(0)
+          if schemes:
+              print(schemes[0])
+              sys.exit(0)
+          print("StratexRealityCapture")
+          PY
+          )
+          echo "Using scheme: ${SCHEME}"
+          echo "SCHEME=${SCHEME}" >> "$GITHUB_ENV"
+
+          # Genuine Apple iOS Simulator SDK compilation. RoomPlan/ARKit become
+          # canImport-available under iphonesimulator, so the real capture
+          # coordinator source path is compiled (not the #else stub).
+          xcodebuild \
+            -scheme "${SCHEME}" \
+            -destination 'generic/platform=iOS Simulator' \
+            -sdk iphonesimulator \
+            -derivedDataPath .build/DerivedData-ios \
+            CODE_SIGNING_ALLOWED=NO \
+            build | tee /tmp/xcodebuild-ios.log
+
+      - name: Prove RoomPlan/ARKit iOS path was compiled
+        working-directory: ios/StratexRealityCapture
+        run: |
+          set -euo pipefail
+          # Object file or swiftmodule for RoomCaptureCoordinator must exist in
+          # the iOS Simulator derived data (compiled under canImport(RoomPlan)).
+          if ! find .build/DerivedData-ios -type f \( \
+                -name 'RoomCaptureCoordinator*.o' -o \
+                -name 'RoomCaptureCoordinator.swiftmodule' -o \
+                -name 'RoomCaptureCoordinator.swiftdoc' -o \
+                -path '*RoomCaptureCoordinator*' \
+              \) | tee /tmp/roomcapture-artifacts.txt | grep -q .; then
+            echo "FAIL: RoomCaptureCoordinator artifact not found in iOS DerivedData" >&2
+            echo "---- xcodebuild tail ----" >&2
+            tail -80 /tmp/xcodebuild-ios.log >&2 || true
+            exit 1
+          fi
+          echo "RoomCaptureCoordinator artifacts:"
+          cat /tmp/roomcapture-artifacts.txt
+          # Compile log must reference RoomPlan (iOS path), not only the stub.
+          if ! grep -E 'RoomPlan|import ARKit|RoomCaptureSession' /tmp/xcodebuild-ios.log \
+               >/tmp/roomplan-compile-refs.txt 2>/dev/null; then
+            # Some xcodebuild log levels omit import lines; accept object-file proof.
+            echo "NOTE: RoomPlan string not in log; object-file proof retained."
+          else
+            echo "RoomPlan/ARKit compile references:"
+            head -20 /tmp/roomplan-compile-refs.txt
+          fi

@@ -85,6 +85,14 @@ STRATEX HABITAT™ is a separate homeowner + contractor-facing app that handshak
 - Validation: H-014A.2 60 pass; H-014A 111 pass; H-013 security 9 + publication/gates/workflow 21; full backend **281 pass / 1 unrelated skip**; coverage reality **83%**. Branch `cursor/h014a2-security-closure` only; audit branch unchanged; not production-ready; H-014B not started.
 - Docs: `docs/h014a/H014A_2_SECURITY_AND_LIFECYCLE_CLOSURE.md` + targeted updates to security/scan/artifact/migration/test/completion docs.
 
+## Implemented (2026-07-23) — H-014B.1 controlled lineage reconciliation (LiDAR capture onto accepted baseline)
+- **Scope:** Recover preserved H-014B implementation onto accepted H-014A.2 main baseline `e9920df1`, correct MongoDB binary-chunk storage violation, retain additive capture APIs / Guardian / resumable upload / DRAFT_CANDIDATE / read-only Capture Review / native Swift source. Branch `cursor/h014b-lineage-reconciliation` only (not merged).
+- **Environment reality (honest):** container is Linux — NO macOS/Xcode/Swift → real iOS build/run + physical LiDAR capture **UNEXECUTED** (native module authored as reviewable source only).
+- **Backend (additive, `/api/reality/v1`):** deterministic Guardian (`scan_guardian.py`, PASS/WARN/FAIL); resumable governed chunked upload (`capture_upload_service.py` + `object_store.py`); native→backend state mapping (`capture.py`); DRAFT_CANDIDATE generation (MEASURED_EXISTING; never VERIFIED_EXISTING); fixture-gated dev proof (`capture_proof.py`). Upload chunks: MongoDB metadata-only + governed object-storage binary staging (no binary/base64 in MongoDB).
+- **Native iOS (`ios/StratexRealityCapture/`):** Swift package — RoomPlan/ARKit coordinator, Guardian mirror, resumable uploader, Habitat API client, secure local store, flow controller + XCTest Guardian tests.
+- **Frontend:** `RealityStudioFoundation.js` tabbed — Reference Room (H-014A) + Capture Review (read-only Guardian/upload/DRAFT_CANDIDATE).
+- **CI:** `.github/workflows/backend-reality.yml` + `ios-capture.yml` (macOS Swift). Docs: `docs/h014b/H014B_*.md`. NOT production-ready / NOT accepted / NOT merged — awaiting Atlas QC.
+
 ## Backlog
 - **P0 (next):** Wire real STRATEX Core API (replace mock publish/sync) once URL/keys provided; swap Emergent storage → customer AWS S3 with signed URLs + version history.
 - **P1:** Authenticity review queue UI (metadata/URL/screenshot → pending/verified/rejected) influencing external-proof confidence; award/dispute lifecycle on quotes; LLM-generated AI findings; Design Studio + Scenario Planner interactive modeling.

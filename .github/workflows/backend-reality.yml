@@ -1,0 +1,186 @@
+name: backend-reality (H-014A/H-014B)
+
+# H-014B.2 — full accepted backend suite + Reality coverage on GitHub Actions.
+# Installs all public deterministic deps; excludes only private/non-PyPI
+# emergentintegrations (optional live Gemini render). HTTP integration tests
+# require MongoDB + a live uvicorn process. Reality coverage uses the accepted
+# H-014A method: coverage-instrumented server subprocess + in-process unit
+# combine (HTTP tests alone cannot attribute coverage to an uninstrumented
+# external process — plain pytest --cov against a separate uvicorn measures
+# ~49% process-local; the combined report is the authoritative ≥83% gate).
+
+on:
+  push:
+    branches: [ "main", "emergent/**", "cursor/**" ]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-reality.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-reality.yml"
+  workflow_dispatch: {}
+
+jobs:
+  full-backend:
+    name: Full backend suite + Reality coverage
+    runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      REACT_APP_BACKEND_URL: "http://127.0.0.1:8001"
+      MONGO_URL: "mongodb://127.0.0.1:27017"
+      DB_NAME: "habitat_ci"
+      JWT_SECRET: "ci-h014b2-jwt-secret-not-for-production"
+      HABITAT_ENV: "test"
+      HABITAT_ENABLE_FIXTURES: "true"
+      HABITAT_OBJECT_STORE_PROVIDER: "fake"
+      CORS_ORIGINS: "*"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          # emergentintegrations is a private/non-PyPI package used only by the
+          # optional live Gemini render path. Public GitHub Actions cannot
+          # install it — exclude only that line. All other requirements install.
+          grep -vE '^[[:space:]]*emergentintegrations([[:space:]]|=|$)' requirements.txt \
+            > /tmp/requirements-ci.txt
+          pip install -r /tmp/requirements-ci.txt
+          pip install pytest-cov coverage
+
+      - name: Byte-compile the reality package (syntax gate)
+        working-directory: backend
+        run: python -m compileall -q reality
+
+      - name: Start coverage-instrumented backend
+        working-directory: backend
+        run: |
+          rm -f .coverage .coverage.*
+          # Named data file (not parallel-mode) so combine is deterministic and
+          # is not clobbered by a later pytest-cov .coverage write.
+          COVERAGE_FILE=.coverage.uvicorn nohup coverage run --branch --source=reality \
+            -m uvicorn server:app --host 127.0.0.1 --port 8001 --workers 1 \
+            > /tmp/habitat-uvicorn.log 2>&1 &
+          echo $! > /tmp/habitat-uvicorn.pid
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:8001/api/ >/dev/null; then
+              # Allow seed_data / index init to finish before the suite.
+              sleep 2
+              echo "backend ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "backend failed to start" >&2
+          cat /tmp/habitat-uvicorn.log >&2 || true
+          exit 1
+
+      - name: Collect tests
+        working-directory: backend
+        run: |
+          python -m pytest --collect-only -q | tee /tmp/pytest-collect.txt
+          python - <<'PY'
+          import re, pathlib, sys
+          text = pathlib.Path("/tmp/pytest-collect.txt").read_text()
+          m = re.search(r"(\d+)\s+tests?\s+collected", text)
+          if not m:
+              print("Could not parse collected count from:", text[-400:], file=sys.stderr)
+              sys.exit(1)
+          n = int(m.group(1))
+          print(f"collected={n}")
+          if n < 332:
+              print(f"FAIL: expected at least 332 collected, got {n}", file=sys.stderr)
+              sys.exit(1)
+          PY
+
+      - name: Full backend suite
+        working-directory: backend
+        run: |
+          python -m pytest tests/ -rs -q | tee /tmp/pytest-full.txt
+          python - <<'PY'
+          import re, pathlib, sys
+          text = pathlib.Path("/tmp/pytest-full.txt").read_text()
+          # Example: "331 passed, 1 skipped, 3 warnings in 6.07s"
+          passed = int(re.search(r"(\d+)\s+passed", text).group(1)) if re.search(r"(\d+)\s+passed", text) else 0
+          failed = int(re.search(r"(\d+)\s+failed", text).group(1)) if re.search(r"(\d+)\s+failed", text) else 0
+          errors = int(re.search(r"(\d+)\s+error", text).group(1)) if re.search(r"(\d+)\s+error", text) else 0
+          skipped = int(re.search(r"(\d+)\s+skipped", text).group(1)) if re.search(r"(\d+)\s+skipped", text) else 0
+          print(f"passed={passed} failed={failed} errors={errors} skipped={skipped}")
+          if failed or errors:
+              sys.exit(1)
+          if passed < 331:
+              print(f"FAIL: expected at least 331 passed, got {passed}", file=sys.stderr)
+              sys.exit(1)
+          if skipped > 1:
+              print(f"FAIL: unexpected skips beyond documented Gemini live-render: {skipped}", file=sys.stderr)
+              sys.exit(1)
+          PY
+
+      - name: Reality package coverage (≥83%)
+        working-directory: backend
+        run: |
+          set -euo pipefail
+
+          # Mission-required reporting command while the instrumented server is
+          # still up. Process-local --cov cannot see HTTP handler execution in
+          # the separate uvicorn process (~49%). Authoritative gate is the
+          # combined report below (accepted H-014A method). --cov-fail-under=0
+          # here so the report still prints; fail-under=83 applies after combine.
+          python -m pytest tests/ -q \
+            --cov=reality \
+            --cov-report=term-missing \
+            --cov-fail-under=0 | tee /tmp/pytest-cov-process-local.txt
+
+          # In-process unit coverage (complements HTTP coverage from uvicorn).
+          COVERAGE_FILE=.coverage.units coverage run --branch --source=reality -m pytest -n 0 -q \
+            tests/test_h014b1_storage_boundary.py \
+            tests/test_h014b_capture.py::TestGuardianDeterminism \
+            tests/test_h014b_capture.py::TestNativeStateMapping \
+            tests/test_h014a_reality.py::TestCoordinateTransformValidation \
+            tests/test_h014a_reality.py::TestSpatialRelationshipValidation \
+            tests/test_h014a_reality.py::TestTruthPromotionGuard \
+            tests/test_h014a_reality.py::TestArtifactChecksum \
+            tests/test_h014a_reality.py::TestStorageReferenceValidation \
+            tests/test_h014a_reality.py::TestReferenceRoomDeterminism \
+            tests/test_h014a2_security_closure.py::TestGeometryReferenceUnit \
+            tests/test_h014a2_security_closure.py::TestFixtureEnvironmentMatrix
+
+          # Flush uvicorn named coverage data.
+          if [ -f /tmp/habitat-uvicorn.pid ]; then
+            kill -TERM "$(cat /tmp/habitat-uvicorn.pid)" || true
+            sleep 3
+            kill -9 "$(cat /tmp/habitat-uvicorn.pid)" 2>/dev/null || true
+          fi
+
+          # Discard process-local pytest-cov .coverage; combine named files only.
+          rm -f .coverage
+          coverage combine .coverage.uvicorn .coverage.units
+          coverage report --fail-under=83 -m | tee /tmp/coverage-report.txt
+
+      - name: Upload backend logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-ci-logs
+          path: |
+            /tmp/habitat-uvicorn.log
+            /tmp/pytest-collect.txt
+            /tmp/pytest-full.txt
+            /tmp/pytest-cov-process-local.txt
+            /tmp/coverage-report.txt
+          if-no-files-found: ignore
