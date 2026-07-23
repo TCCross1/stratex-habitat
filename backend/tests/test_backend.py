@@ -59,7 +59,12 @@ class TestProperty:
         assert r.status_code == 200
         data = r.json()
         assert len(data) >= 1
-        assert any(p["name"] == "Villa Horizon" for p in data)
+        assert any(
+            p["name"] in ("Central Kentucky Demonstration Home", "Villa Horizon")
+            or p.get("is_demo_fixture") is True
+            or p.get("visualization_data_origin") == "demo"
+            for p in data
+        )
 
     def test_analytics(self, homeowner_session, api_url):
         props = homeowner_session.get(f"{api_url}/properties").json()
@@ -82,9 +87,17 @@ class TestProperty:
         assert r.status_code == 200
         data = r.json()
         assert len(data) == 8, f"Expected 8 findings, got {len(data)}"
-        # roof thermal expected
+        # Demo findings must remain sample-only — never approved / LiDAR claims
+        assert all(
+            f.get("truth_status") == "sample_only"
+            or f.get("data_origin") == "demo"
+            or f.get("is_approved_finding") is False
+            for f in data
+        )
+        assert all(f.get("is_lidar_detected") is not True for f in data)
+        assert all(f.get("passport_approved") is not True for f in data)
         titles = " ".join(f.get("title", "") for f in data).lower()
-        assert "thermal" in titles or any("thermal" in (f.get("description") or "").lower() for f in data)
+        assert "example" in titles or "sample" in titles
 
     def test_maintenance(self, homeowner_session, api_url):
         r = homeowner_session.get(f"{api_url}/maintenance")

@@ -416,7 +416,9 @@ function SaveDialog({ pid, baseImg, preview, selections, lighting, est, onSaved,
         <DialogHeader><DialogTitle className="font-head">Save Scenario</DialogTitle></DialogHeader>
         <input data-testid="scenario-name" placeholder="e.g. Modern Charcoal Refresh" value={name} onChange={(e) => setName(e.target.value)}
           className="w-full bg-[#0a0a0b] border border-[#27272a] rounded-md h-10 px-3 text-sm focus:outline-none focus:border-teal" />
-        <div className="text-[11px] text-[#71717a]">Saved under Villa Horizon with version history in your AWS property record.</div>
+        <div className="text-[11px] text-[#71717a]">
+          Saved under {property?.habitat_display_name || property?.name || "Central Kentucky Demonstration Home"} with version history in your property record.
+        </div>
         <DialogFooter>
           <Button disabled={!name} onClick={save} data-testid="scenario-save-confirm" className="w-full font-semibold" style={{ background: "#14f1d9", color: "#050505" }}>Save Scenario</Button>
         </DialogFooter>

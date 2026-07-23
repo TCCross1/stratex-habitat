@@ -112,6 +112,19 @@ h1, h2, h3, h4, .font-head { font-family: 'Outfit', sans-serif; }
     #060607;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .live-dot,
+  .rise,
+  .kpi-card:hover {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+  [data-testid^="hotspot-"] {
+    transition: none !important;
+  }
+}
+
 /* iOS safe-area helpers */
 .safe-top { padding-top: env(safe-area-inset-top); }
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }

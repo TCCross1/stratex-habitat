@@ -109,19 +109,25 @@ function ReferenceRoomView({ cache, setCache }) {
   const [loading, setLoading] = useState(!cache);
 
   useEffect(() => {
-    if (cache) return;
+    if (cache) {
+      setLoading(false);
+      return undefined;
+    }
+    let cancelled = false;
     (async () => {
       try {
         const res = await api.post("/reality/v1/development/reference-room/bootstrap");
+        if (cancelled) return;
         setData(res.data);
         setCache(res.data);
       } catch (e) {
-        setError(formatApiError(e.response?.data?.detail) || e.message);
+        if (!cancelled) setError(formatApiError(e.response?.data?.detail) || e.message);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
-  }, []);
+    return () => { cancelled = true; };
+  }, [cache, setCache]);
 
   if (loading) return <div className="p-8 text-[#71717a] text-sm" data-testid="reality-foundation-loading">Loading reference room…</div>;
   if (error) return (
@@ -266,19 +272,25 @@ function CaptureReviewView({ cache, setCache }) {
   const [loading, setLoading] = useState(!cache);
 
   useEffect(() => {
-    if (cache) return;
+    if (cache) {
+      setLoading(false);
+      return undefined;
+    }
+    let cancelled = false;
     (async () => {
       try {
         const res = await api.post("/reality/v1/development/capture-proof/bootstrap");
+        if (cancelled) return;
         setData(res.data);
         setCache(res.data);
       } catch (e) {
-        setError(formatApiError(e.response?.data?.detail) || e.message);
+        if (!cancelled) setError(formatApiError(e.response?.data?.detail) || e.message);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
-  }, []);
+    return () => { cancelled = true; };
+  }, [cache, setCache]);
 
   if (loading) return <div className="p-8 text-[#71717a] text-sm" data-testid="reality-capture-loading">Running governed capture proof…</div>;
   if (error) return (

@@ -2,6 +2,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useAppData } from "@/context/AppDataContext";
 import { HOMEOWNER_NAV, CONTRACTOR_NAV } from "@/config/nav";
+import { CENTRAL_KENTUCKY_DEMO_HOME } from "@/propertyVisualization/centralKentuckyDemoHome";
 
 export default function SectionNav({ onNavigate }) {
   const { user } = useAuth();
@@ -12,22 +13,49 @@ export default function SectionNav({ onNavigate }) {
 
   const go = (to) => { navigate(to); onNavigate && onNavigate(); };
 
+  const displayName =
+    property?.habitat_display_name ||
+    (property?.is_demo_fixture || property?.visualization_data_origin === "demo"
+      ? CENTRAL_KENTUCKY_DEMO_HOME.displayName
+      : property?.name) ||
+    CENTRAL_KENTUCKY_DEMO_HOME.displayName;
+  const displayLocation =
+    property?.is_demo_fixture ||
+    property?.visualization_data_origin === "demo" ||
+    property?.visualization_profile === "central-kentucky-demo-home" ||
+    (property?.location || "").includes("Lexington") ||
+    (property?.location || "").includes("Central Kentucky")
+      ? (property?.location?.includes("Lexington") ? property.location : CENTRAL_KENTUCKY_DEMO_HOME.regionLabel)
+      : CENTRAL_KENTUCKY_DEMO_HOME.regionLabel;
+  const thumbSrc =
+    property?.thumbnail?.startsWith("/property-visualizations/")
+      ? property.thumbnail
+      : CENTRAL_KENTUCKY_DEMO_HOME.thumbAsset;
+
   return (
     <aside className="w-[280px] md:w-[210px] lg:w-[240px] shrink-0 border-r border-[#27272a] bg-[#0a0a0b] flex flex-col overflow-y-auto"
       data-testid="section-nav">
       {/* property card */}
       {property && user?.role !== "contractor" && (
-        <button onClick={() => go("/twin")} data-testid="property-card"
+        <button type="button" onClick={() => go("/twin")} data-testid="property-card"
           className="m-3 p-2.5 rounded-md border border-[#27272a] bg-[#111113] flex gap-3 items-center text-left hover:border-[#3f3f46] transition-colors">
-          <img src={property.thumbnail} alt="" className="w-12 h-12 rounded object-cover border border-[#27272a]" />
+          <img
+            src={thumbSrc}
+            alt=""
+            width={48}
+            height={48}
+            className="w-12 h-12 rounded object-cover border border-[#27272a]"
+            data-testid="property-card-thumb"
+            data-demo-home="central-kentucky"
+          />
           <div className="min-w-0">
             <div className="text-sm font-medium text-white truncate flex items-center gap-1">
-              {property.name}
+              {displayName}
             </div>
-            <div className="text-[11px] text-[#71717a]">{property.location}</div>
+            <div className="text-[11px] text-[#71717a]">{displayLocation}</div>
             <div className="flex items-center gap-1.5 mt-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-[#00ff66] live-dot" />
-              <span className="text-[10px] text-[#a1a1aa]">{property.status}</span>
+              <span className="text-[10px] text-[#a1a1aa]">{property.status} · sample</span>
             </div>
           </div>
         </button>

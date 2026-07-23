@@ -5,6 +5,8 @@ import { useAppData } from "@/context/AppDataContext";
 import { useDevice } from "@/hooks/useDevice";
 import { Sparkline, Change } from "@/components/Primitives";
 import Inspector from "@/components/Inspector";
+import PropertyVisualization, { StudioEmptyState } from "@/components/property/PropertyVisualization";
+import { getCentralKentuckyDemoVisualization } from "@/propertyVisualization/centralKentuckyDemoHome";
 import { Switch } from "@/components/ui/switch";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Box, Grid3x3, Crosshair, MousePointer2, Ruler, PanelRightOpen, Layers as LayersIcon, X } from "lucide-react";
@@ -41,7 +43,7 @@ function KpiCard({ label, value, sub, subColor, children, testid }) {
 }
 
 export default function DigitalTwin() {
-  const { property, analytics, findings, pid } = useAppData();
+  const { property, analytics, pid } = useAppData();
   const device = useDevice();
   const [layers, setLayers] = useState({ Thermal: true, "Energy Flow": true, "Water Flow": false,
     Structural: true, Electrical: true, Plumbing: false, HVAC: true, Roofing: true });
@@ -49,21 +51,30 @@ export default function DigitalTwin() {
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [showLayers, setShowLayers] = useState(!device.isPhone);
 
-  const assets = useQuery({ queryKey: ["assets", pid],
+  // Assets remain available for future non-demo projections; demo twin prefers empty Inspector.
+  useQuery({ queryKey: ["assets", pid],
     queryFn: async () => (await api.get(`/properties/${pid}/assets`)).data, enabled: !!pid });
-  const quotes = useQuery({ queryKey: ["quotes"], queryFn: async () => (await api.get("/quotes")).data });
 
   if (!property) return <div className="p-8 text-[#71717a]">Loading digital twin…</div>;
 
-  const roofAsset = assets.data?.[0];
-  const roofFinding =
-    findings?.find((f) => f.asset_id === roofAsset?.id && f.price_high > 0) ||
-    findings?.find((f) => f.price_high > 0) || findings?.[0];
-  const roofQuote = quotes.data?.find((q) => q.finding_id === roofFinding?.id && q.contractor_responses?.length);
+  const demoViz = getCentralKentuckyDemoVisualization({
+    propertyId: property.id || "demo-central-kentucky-home",
+  });
+  const isDemoProperty =
+    property.is_demo_fixture === true ||
+    property.visualization_data_origin === "demo" ||
+    property.visualization_truth_status === "sample_only" ||
+    property.visualization_profile === "central-kentucky-demo-home" ||
+    !property.visualization_profile; // default Habitat twin to KY demo contract
 
   const inspector = (
-    <Inspector asset={roofAsset} finding={roofFinding} quote={roofQuote}
-      onClose={() => setInspectorOpen(false)} />
+    <Inspector
+      asset={null}
+      finding={null}
+      quote={null}
+      demoMode={Boolean(isDemoProperty)}
+      onClose={() => setInspectorOpen(false)}
+    />
   );
 
   return (
@@ -78,9 +89,11 @@ export default function DigitalTwin() {
                 <span className="w-1.5 h-1.5 rounded-full bg-[#00ff66] live-dot" /> Live
               </span>
             </div>
-            <div className="text-[12px] text-[#71717a] mt-1">Last updated: {property.last_updated}</div>
+            <div className="text-[12px] text-[#71717a] mt-1">
+              {demoViz.displayName} · {demoViz.regionLabel} · Updated {property.last_updated}
+            </div>
           </div>
-          <button onClick={() => setInspectorOpen(true)} className="lg:hidden rail-btn" data-testid="open-inspector-mobile">
+          <button onClick={() => setInspectorOpen(true)} className="lg:hidden rail-btn" data-testid="open-inspector-mobile" aria-label="Open inspector">
             <PanelRightOpen size={18} />
           </button>
         </div>
@@ -104,16 +117,31 @@ export default function DigitalTwin() {
             sub="Active" subColor="#ff6b00" testid="kpi-alerts" />
         </div>
 
-        {/* twin stage */}
-        <div className="relative rounded-md border border-[#27272a] twin-stage overflow-hidden mb-4 min-h-[320px] sm:min-h-[420px]"
-          data-testid="twin-stage">
+        {/* Property visualization — Central Kentucky demo exterior via contract */}
+        <PropertyVisualization
+          propertyId={demoViz.propertyId}
+          propertyProfile={demoViz.propertyProfile}
+          visualizationSource={demoViz.visualizationSource}
+          visualizationType="image"
+          exteriorAsset={demoViz.exteriorAsset}
+          exteriorAssetMobile={demoViz.exteriorAssetMobile}
+          posterAsset={demoViz.posterAsset}
+          modelAsset={demoViz.modelAsset}
+          hotspots={demoViz.hotspots}
+          selectedMode={view}
+          visualizationState="demo"
+          confidenceState="demo"
+          scanReadiness="no_scan"
+          modelSource="demo"
+          altText={demoViz.altText}
+        >
           {/* layers panel */}
           {showLayers ? (
             <div className="absolute left-3 top-3 z-20 w-40 sm:w-44 rounded-md border border-[#27272a] bg-[#0a0a0bee] backdrop-blur p-3"
               data-testid="layers-panel">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium">Layers</span>
-                <button onClick={() => setShowLayers(false)} className="sm:hidden text-[#71717a]" data-testid="layers-collapse"><X size={14} /></button>
+                <button type="button" onClick={() => setShowLayers(false)} className="sm:hidden text-[#71717a]" data-testid="layers-collapse" aria-label="Collapse layers"><X size={14} /></button>
               </div>
               <div className="space-y-1.5">
                 {LAYERS.map((l) => (
@@ -127,27 +155,24 @@ export default function DigitalTwin() {
               </div>
             </div>
           ) : (
-            <button onClick={() => setShowLayers(true)} data-testid="layers-expand"
-              className="absolute left-3 top-3 z-20 flex items-center gap-1.5 rounded-md border border-[#27272a] bg-[#0a0a0bee] backdrop-blur px-3 py-2 text-xs text-[#a1a1aa]">
+            <button type="button" onClick={() => setShowLayers(true)} data-testid="layers-expand"
+              className="absolute left-3 top-3 z-20 flex items-center gap-1.5 rounded-md border border-[#27272a] bg-[#0a0a0bee] backdrop-blur px-3 py-2 text-xs text-[#a1a1aa]"
+              aria-label="Expand layers">
               <LayersIcon size={14} /> Layers
             </button>
           )}
 
-          <img src={property.twin_image} alt="Digital twin" data-testid="twin-image"
-            className="absolute inset-0 w-full h-full object-contain p-8"
-            style={{ filter: layers.Thermal ? "none" : "saturate(0.4) brightness(0.8)" }} />
-
           {/* bottom toolbar */}
           <div className="absolute left-3 bottom-3 z-20 flex items-center gap-1 rounded-md border border-[#27272a] bg-[#0a0a0bcc] p-1">
-            <button className="rail-btn !w-8 !h-8 active"><Box size={15} /></button>
-            <button className="rail-btn !w-8 !h-8"><Grid3x3 size={15} /></button>
-            <button className="rail-btn !w-8 !h-8"><Crosshair size={15} /></button>
+            <button type="button" className="rail-btn !w-8 !h-8 active" aria-label="Orbit view"><Box size={15} /></button>
+            <button type="button" className="rail-btn !w-8 !h-8" aria-label="Grid overlay"><Grid3x3 size={15} /></button>
+            <button type="button" className="rail-btn !w-8 !h-8" aria-label="Focus target"><Crosshair size={15} /></button>
           </div>
           <div className="absolute left-1/2 -translate-x-1/2 bottom-3 z-20 flex rounded-md border border-[#27272a] bg-[#0a0a0bcc] p-1">
             {["2D Plan", "3D Twin"].map((v) => {
               const active = (v === "3D Twin" && view === "3D") || (v === "2D Plan" && view === "2D");
               return (
-                <button key={v} data-testid={`view-${v.includes("2D") ? "2d" : "3d"}`}
+                <button key={v} type="button" data-testid={`view-${v.includes("2D") ? "2d" : "3d"}`}
                   onClick={() => setView(v.includes("2D") ? "2D" : "3D")}
                   className={`text-xs px-3 py-1.5 rounded ${active ? "text-teal bg-[rgba(20,241,217,0.1)]" : "text-[#71717a]"}`}>
                   {v}
@@ -156,9 +181,17 @@ export default function DigitalTwin() {
             })}
           </div>
           <div className="absolute right-3 bottom-3 z-20 flex items-center gap-1 rounded-md border border-[#27272a] bg-[#0a0a0bcc] p-1">
-            <button className="rail-btn !w-8 !h-8"><MousePointer2 size={15} /></button>
-            <button className="rail-btn !w-8 !h-8"><Ruler size={15} /></button>
+            <button type="button" className="rail-btn !w-8 !h-8" aria-label="Select"><MousePointer2 size={15} /></button>
+            <button type="button" className="rail-btn !w-8 !h-8" aria-label="Measure"><Ruler size={15} /></button>
           </div>
+        </PropertyVisualization>
+
+        {/* LiDAR-independent studio empty foundations (not fabricated content) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4" data-testid="studio-empty-foundations">
+          <StudioEmptyState workspace="interior_reality" />
+          <StudioEmptyState workspace="exterior_reality" />
+          <StudioEmptyState workspace="home_systems" />
+          <StudioEmptyState workspace="whole_property" />
         </div>
 
         {/* bottom analytics */}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "@/lib/api";
 import { useAppData } from "@/context/AppDataContext";
 import { useAuth } from "@/context/AuthContext";
@@ -69,35 +69,43 @@ export default function HomeSteward() {
     render: "0ms"
   });
 
-  const addLog = (msg, level = "INFO") => {
+  const correlationIdRef = useRef(correlationId);
+  correlationIdRef.current = correlationId;
+
+  const addLog = useCallback((msg, level = "INFO") => {
     const time = new Date().toLocaleTimeString();
-    const corr = correlationId ? ` [Corr: ${correlationId.slice(0, 8)}]` : "";
+    const corrId = correlationIdRef.current;
+    const corr = corrId ? ` [Corr: ${corrId.slice(0, 8)}]` : "";
     setLogs((prev) => [`[${time}] ${level}${corr} - ${msg}`, ...prev].slice(0, 50));
-  };
+  }, []);
 
   // Fetch initial context and memories
   useEffect(() => {
     if (!user) return;
+    let cancelled = false;
     const loadInitial = async () => {
       try {
         const start = performance.now();
         const ctxRes = await api.get("/steward/context");
+        if (cancelled) return;
         setContextData(ctxRes.data);
         const end = performance.now();
         setLatencyMetrics(m => ({ ...m, contextRetrieval: `${Math.round(end - start)}ms` }));
         addLog("Property context pipeline fetched successfully. Verified tenant alex@stratexhabitat.com.");
-        
+
         const memRes = await api.get("/steward/memory");
+        if (cancelled) return;
         setMemoryData(memRes.data);
         setPreferredMaterialMem(memRes.data.project_memory.preferred_roof_material);
         setBudgetTargetMem(memRes.data.project_memory.budget_target);
         setTimelinePreferenceMem(memRes.data.project_memory.timeline_preference);
       } catch (err) {
-        addLog(`Failed to fetch context: ${err.message}`, "ERROR");
+        if (!cancelled) addLog(`Failed to fetch context: ${err.message}`, "ERROR");
       }
     };
     loadInitial();
-  }, [user]);
+    return () => { cancelled = true; };
+  }, [user, addLog]);
 
   // Handle homeowner question
   const handleAsk = async () => {
@@ -779,7 +787,9 @@ export default function HomeSteward() {
               <div className="flex justify-between items-start border-b border-[#27272a] pb-3">
                 <div>
                   <h4 className="font-bold text-white text-sm">{contractorPreview.summary}</h4>
-                  <p className="text-[11px] text-[#71717a] mt-0.5">Scoped from Villa Horizon Digital Twin</p>
+                  <p className="text-[11px] text-[#71717a] mt-0.5">
+                    Scoped from {property?.habitat_display_name || property?.name || "Central Kentucky Demonstration Home"} Digital Twin
+                  </p>
                 </div>
                 <span className="text-[10px] font-mono bg-teal/10 text-teal px-2 py-0.5 rounded font-bold uppercase" style={{ color: "#14f1d9" }}>
                   Score: 65/100
