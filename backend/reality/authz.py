@@ -6,6 +6,9 @@ from . import enums
 # The deterministic reference room owns a dedicated synthetic property, authorized
 # to the demo homeowner + privileged roles only.
 REF_PROPERTY_ID = "ref-property-h014a"
+# H-014B capture proof owns a SEPARATE synthetic property so its synthetic capture
+# geometry never perturbs the H-014A deterministic reference room.
+REF_CAPTURE_PROPERTY_ID = "ref-property-h014b-capture"
 REF_HOMEOWNER_EMAIL = "alex@stratexhabitat.com"
 
 
@@ -39,9 +42,9 @@ async def authorize_property(db, user: dict, property_id: str) -> dict:
     """
     role = user.get("role")
     # Reference-room synthetic property: demo homeowner + privileged roles only.
-    if property_id == REF_PROPERTY_ID:
+    if property_id in (REF_PROPERTY_ID, REF_CAPTURE_PROPERTY_ID):
         if role in enums.PRIVILEGED_ROLES or user.get("email") == REF_HOMEOWNER_EMAIL:
-            return {"id": REF_PROPERTY_ID, "owner_email": REF_HOMEOWNER_EMAIL, "reference": True}
+            return {"id": property_id, "owner_email": REF_HOMEOWNER_EMAIL, "reference": True}
         raise structured(403, "PROPERTY_ACCESS_DENIED", "Not authorized for this property.")
 
     prop = None

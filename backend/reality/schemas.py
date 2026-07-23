@@ -89,3 +89,45 @@ class DesignModelCreate(BaseModel):
     proposed_entities: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
     deltas: Optional[Dict[str, Any]] = None
     previous_design_version_id: Optional[str] = None
+
+
+# --- H-014B capture proof + Scan Quality Guardian ------------------------
+class CaptureProgressCreate(BaseModel):
+    native_state: Optional[str] = None
+    surface_coverage: Optional[Dict[str, Any]] = None
+    tracking_quality: Optional[Dict[str, Any]] = None
+    captured_area_m2: Optional[float] = None
+    frame_count: Optional[int] = None
+
+
+class GuardianEvaluateCreate(BaseModel):
+    """Deterministic capture-quality report. Extra keys are tolerated so the native
+    client may enrich the payload without breaking the governed contract."""
+    model_config = {"extra": "allow"}
+    captured_area_m2: Optional[float] = None
+    expected_area_m2: Optional[float] = None
+    surface_coverage: Optional[Dict[str, Any]] = None
+    wall_count_detected: Optional[int] = None
+    wall_count_expected: Optional[int] = None
+    tracking_quality: Optional[Dict[str, Any]] = None
+    drift_estimate_m: Optional[float] = None
+    frame_count: Optional[int] = None
+    low_quality_frame_fraction: Optional[float] = None
+    dimensions_m: Optional[Dict[str, Any]] = None
+    openings_detected: Optional[int] = None
+
+
+class UploadInitCreate(BaseModel):
+    artifact_type: str
+    checksum_sha256: str
+    total_size: int
+    chunk_size: int
+    content_type: Optional[str] = None
+    truth_classification: str = "UNKNOWN"
+    idempotency_key: Optional[str] = None
+
+
+class CandidateGenerateCreate(BaseModel):
+    derived_structure: Dict[str, Any]
+    artifact_ids: Optional[List[str]] = None
+    coordinate_frame_id: Optional[str] = None
