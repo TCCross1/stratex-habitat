@@ -1,9 +1,15 @@
-"""STRATEX HABITAT demo seed — Villa Horizon homeowner record + contractors + marketplace."""
+"""STRATEX HABITAT demo seed — homeowner record + contractors + marketplace.
+
+Property identity remains the established demo tenant (Villa Horizon) for
+backend/Passport fixture stability. Habitat Digital Twin exterior media uses
+local Central Kentucky demonstration assets (dataOrigin=demo / sample_only).
+"""
 from datetime import datetime, timezone
 import uuid
 
-DT_HOUSE = "https://static.prod-images.emergentagent.com/jobs/c119c08f-8c40-44cf-8b5d-30e3b2d20f4a/images/4693f2f3df9f41fe888c10d8126e3b5dbdbccf85e75111eb0fa3e6b3a774eed7.png"
-PROP_THUMB = "https://images.unsplash.com/photo-1767950470198-c9cd97f8ed87?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MTN8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBsdXh1cnklMjB2aWxsYSUyMG5pZ2h0fGVufDB8fHx8MTc4MjQxNDg1NHww&ixlib=rb-4.1.0&q=85"
+# Local Habitat demo exterior (not Passport-approved property truth)
+DT_HOUSE = "/property-visualizations/habitat-central-kentucky-demo-home.webp"
+PROP_THUMB = "/property-visualizations/habitat-central-kentucky-demo-home-thumb.webp"
 AV_HOME = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDF8MHwxfHNlYXJjaHwzfHxwcm9mZXNzaW9uYWwlMjBoZWFkc2hvdCUyMHBvcnRyYWl0fGVufDB8fHx8MTc4MjMzOTcwNHww&ixlib=rb-4.1.0&q=85"
 AV_C1 = "https://images.unsplash.com/photo-1607503873903-c5e95f80d7b9?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDF8MHwxfHNlYXJjaHw0fHxwcm9mZXNzaW9uYWwlMjBoZWFkc2hvdCUyMHBvcnRyYWl0fGVufDB8fHx8MTc4MjMzOTcwNHww&ixlib=rb-4.1.0&q=85"
 AV_C2 = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDF8MHwxfHNlYXJjaHwyfHxwcm9mZXNzaW9uYWwlMjBoZWFkc2hvdCUyMHBvcnRyYWl0fGVufDB8fHx8MTc4MjMzOTcwNHww&ixlib=rb-4.1.0&q=85"
@@ -42,8 +48,12 @@ async def run_seed(db, hash_password):
 
     prop_id = str(uuid.uuid4())
     await db.properties.insert_one({
-        "id": prop_id, "owner_id": home_id, "name": "Villa Horizon", "location": "Austin, TX",
+        "id": prop_id, "owner_id": home_id, "name": "Villa Horizon",
+        "location": "Central Kentucky (sample)",
         "status": "Connected", "thumbnail": PROP_THUMB, "twin_image": DT_HOUSE,
+        "habitat_display_name": "Central Kentucky Demonstration Home",
+        "visualization_data_origin": "demo",
+        "visualization_truth_status": "sample_only",
         "property_score": 87, "energy_efficiency": {"value": 72, "label": "Good"},
         "water_efficiency": {"value": 64, "label": "Fair"},
         "system_health": {"value": 91, "label": "Excellent"},
