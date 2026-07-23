@@ -223,7 +223,7 @@ UP_ABORTED = "ABORTED"
 UP_FAILED = "FAILED"
 UPLOAD_TERMINAL = {UP_COMPLETED, UP_ABORTED}
 
-MAX_CHUNK_BYTES = 8 * 1024 * 1024            # < 16 MB BSON document limit (chunk staged in Mongo)
+MAX_CHUNK_BYTES = 8 * 1024 * 1024            # governed per-chunk staging cap (object storage, not Mongo)
 MIN_CHUNK_BYTES = 1
 MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024    # 2 GiB governed per-artifact cap
 MAX_TOTAL_CHUNKS = 4096                       # governed fan-out cap

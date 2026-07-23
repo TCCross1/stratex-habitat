@@ -1,20 +1,26 @@
-"""Resumable, governed chunked upload of heavy capture artifacts (H-014B, Phase 6).
+"""Resumable, governed chunked upload of heavy capture artifacts (H-014B / H-014B.1).
 
 Flow (client == iOS ResumableUploader):
   1. init_upload   -> create an upload session bound to tenant+property+scan.
-  2. put_chunk     -> stream ordered/independent chunks; idempotent per index;
-                      chunks are staged in MongoDB (`reality_upload_chunks`) so a
-                      client can resume after interruption (see get_status).
-  3. complete_upload -> require all chunks; assemble in order; verify the
-                      assembled SHA-256 against the client-declared manifest
-                      checksum; on match, write ONE immutable object to governed
-                      object storage and create the artifact manifest; purge staging.
-  4. abort_upload  -> discard staged chunks.
+  2. put_chunk     -> validate auth already done by router; validate index/size/
+                      SHA-256; stream chunk bytes into governed object-storage
+                      staging; persist METADATA ONLY in MongoDB
+                      (`reality_upload_chunks`) with an opaque object reference.
+  3. complete_upload -> require all chunks; ordered disk-backed assemble from
+                      object storage; verify whole-file SHA-256; write ONE
+                      immutable final object; mark staging for cleanup; never
+                      load the complete artifact into MongoDB.
+  4. abort_upload  -> mark session aborted; mark staging for cleanup; metadata
+                      purge; idempotent on replay.
 
 Governance: tenant is server-derived, property is the authorized scan-session
 property (never taken from the client). The final object key is server-derived
-`tenant/{tenant}/property/{property}/reality/{artifact_id}`. Checksum mismatch is
-rejected (never silently accepted) and audited.
+`tenant/{tenant}/property/{property}/reality/{artifact_id}`. Checksum mismatch
+is rejected (never silently accepted) and audited.
+
+MongoDB stores metadata only — never binary chunk bytes or base64 copies.
+API responses never expose bucket names, raw object keys, credentials, public
+URLs, or signed URLs.
 """
 import hashlib
 import math
@@ -27,6 +33,10 @@ from .authz import structured, server_tenant_id, not_found_nondisclosure
 from .audit_service import write_event
 from .artifact_service import (build_manifest_record, public_view, validate_checksum,
                                governed_storage_reference)
+
+# Fields that must NEVER appear on reality_upload_chunks documents.
+_FORBIDDEN_BINARY_FIELDS = ("data", "data_b64", "bytes", "payload", "content",
+                            "chunk_bytes", "binary", "base64")
 
 
 def _now_iso() -> str:
@@ -43,6 +53,63 @@ async def _load_session(db, upload_session_id):
 def _missing_indexes(received, total):
     got = set(received or [])
     return [i for i in range(total) if i not in got]
+
+
+def _public_upload_view(up: dict) -> dict:
+    """Strip any internal storage fields before returning upload session state."""
+    out = dict(up)
+    out.pop("_id", None)
+    out.pop("storage_key", None)
+    out.pop("_storage_key_internal", None)
+    out.pop("signed_url", None)
+    out.pop("public_url", None)
+    out.pop("bucket", None)
+    return out
+
+
+def _chunk_metadata_doc(*, up: dict, index: int, size: int, sha256: str,
+                        object_reference: str, etag, storage_key_internal: str,
+                        now: str) -> dict:
+    """Build a metadata-only chunk document. Never includes binary bytes."""
+    return {
+        "upload_session_id": up["id"],
+        "tenant_id": up["tenant_id"],
+        "property_id": up["property_id"],
+        "scan_session_id": up["scan_session_id"],
+        "artifact_id": up.get("artifact_id"),
+        "index": index,
+        "declared_size": size,
+        "verified_size": size,
+        "declared_checksum_sha256": sha256,
+        "verified_checksum_sha256": sha256,
+        "sha256": sha256,
+        "size": size,
+        "object_reference": object_reference,  # opaque; not a raw key
+        "etag": etag,
+        "receipt": etag,
+        "upload_state": enums.UP_IN_PROGRESS,
+        "retry_state": {"attempts": 0, "last_error": None},
+        "ownership": {"tenant_id": up["tenant_id"], "property_id": up["property_id"]},
+        "lineage": {
+            "upload_session_id": up["id"],
+            "scan_session_id": up["scan_session_id"],
+            "correlation_id": up.get("correlation_id"),
+        },
+        "expires_at": up.get("expires_at"),
+        "audit_refs": {"correlation_id": up.get("correlation_id")},
+        # Internal only — never surfaced through API responses.
+        "_storage_key_internal": storage_key_internal,
+        "created_at": now,
+        "updated_at": now,
+    }
+
+
+def assert_no_binary_fields(doc: dict):
+    for field in _FORBIDDEN_BINARY_FIELDS:
+        if field in doc and doc[field] is not None:
+            raise RuntimeError(
+                f"storage-boundary violation: chunk document must not contain '{field}'"
+            )
 
 
 async def init_upload(db, user, *, scan_session_id, body: dict, correlation_id):
@@ -85,7 +152,7 @@ async def init_upload(db, user, *, scan_session_id, body: dict, correlation_id):
         if existing:
             existing["missing_indexes"] = _missing_indexes(existing.get("received_indexes"),
                                                            existing["total_chunks"])
-            return existing
+            return _public_upload_view(existing)
 
     now = _now_iso()
     ttl_hours = 72
@@ -112,6 +179,7 @@ async def init_upload(db, user, *, scan_session_id, body: dict, correlation_id):
         "created_at": now, "updated_at": now,
         "expires_at": (datetime.now(timezone.utc) + timedelta(hours=ttl_hours)).isoformat(),
         "authoritative": False,
+        "staging_cleanup_marks": [],
     }
     await db[enums.C_UPLOAD_SESSIONS].insert_one(dict(rec))
     await write_event(db, enums.A_UPLOAD_INITIATED, user, property_id=property_id,
@@ -120,8 +188,7 @@ async def init_upload(db, user, *, scan_session_id, body: dict, correlation_id):
                       extra={"artifact_type": artifact_type, "total_chunks": total_chunks,
                              "declared_size": total_size})
     rec["missing_indexes"] = list(range(total_chunks))
-    rec.pop("_id", None)
-    return rec
+    return _public_upload_view(rec)
 
 
 async def put_chunk(db, user, *, upload_session_id, index, data: bytes, chunk_sha256=None):
@@ -146,15 +213,56 @@ async def put_chunk(db, user, *, upload_session_id, index, data: bytes, chunk_sh
     if chunk_sha256 and chunk_sha256.lower() != actual_sha:
         raise structured(422, "CHUNK_CHECKSUM_MISMATCH", f"Chunk {index} checksum does not match its bytes.")
 
-    already = index in (up.get("received_indexes") or [])
-    # Idempotent per-index upsert of the staged chunk bytes.
+    existing = await db[enums.C_UPLOAD_CHUNKS].find_one(
+        {"upload_session_id": upload_session_id, "index": index}, {"_id": 0})
+    if existing:
+        prev = (existing.get("verified_checksum_sha256") or existing.get("sha256") or "").lower()
+        if prev == actual_sha and existing.get("size") == size:
+            # Identical duplicate → idempotent success; do not re-write binaries to Mongo.
+            fresh = await db[enums.C_UPLOAD_SESSIONS].find_one({"id": upload_session_id}, {"_id": 0})
+            received = sorted(fresh.get("received_indexes") or [])
+            return {
+                "upload_session_id": upload_session_id,
+                "index": index,
+                "chunk_sha256": actual_sha,
+                "duplicate": True,
+                "idempotent": True,
+                "received_count": len(received),
+                "total_chunks": total,
+                "bytes_received": fresh.get("bytes_received", 0),
+                "missing_indexes": _missing_indexes(received, total),
+                "state": fresh["state"],
+            }
+        raise structured(409, "CONFLICTING_CHUNK",
+                         f"Chunk {index} already stored with different content; "
+                         "identical duplicates are idempotent, conflicting content is rejected.")
+
+    # Stream chunk into governed object-storage staging (not MongoDB).
+    try:
+        staged = await object_store.put_staging_chunk(
+            tenant_id=up["tenant_id"], property_id=up["property_id"],
+            upload_session_id=upload_session_id, index=index, data=data,
+            content_type=up.get("content_type") or "application/octet-stream")
+    except object_store.ObjectStoreProviderForbidden as e:
+        raise structured(503, "OBJECT_STORE_PROVIDER_FORBIDDEN", str(e))
+    except object_store.ObjectStoreError as e:
+        raise structured(502, "OBJECT_STORE_UNAVAILABLE",
+                         f"Chunk staging failed ({e.status}).")
+
+    now = _now_iso()
+    meta = _chunk_metadata_doc(
+        up=up, index=index, size=size, sha256=actual_sha,
+        object_reference=staged["object_reference"], etag=staged.get("etag"),
+        storage_key_internal=staged["_storage_key_internal"], now=now)
+    assert_no_binary_fields(meta)
+
     await db[enums.C_UPLOAD_CHUNKS].update_one(
         {"upload_session_id": upload_session_id, "index": index},
-        {"$set": {"upload_session_id": upload_session_id, "index": index,
-                  "size": size, "sha256": actual_sha, "data": data,
-                  "created_at": _now_iso()}},
+        {"$set": meta},
         upsert=True)
-    update = {"$set": {"state": enums.UP_IN_PROGRESS, "updated_at": _now_iso()},
+
+    already = index in (up.get("received_indexes") or [])
+    update = {"$set": {"state": enums.UP_IN_PROGRESS, "updated_at": now},
               "$addToSet": {"received_indexes": index}}
     if not already:
         update["$inc"] = {"bytes_received": size}
@@ -166,12 +274,15 @@ async def put_chunk(db, user, *, upload_session_id, index, data: bytes, chunk_sh
         "upload_session_id": upload_session_id,
         "index": index,
         "chunk_sha256": actual_sha,
-        "duplicate": already,
+        "duplicate": False,
+        "idempotent": False,
         "received_count": len(received),
         "total_chunks": total,
         "bytes_received": fresh.get("bytes_received", 0),
         "missing_indexes": _missing_indexes(received, total),
         "state": fresh["state"],
+        # Prove API does not leak storage coordinates:
+        # (absence is the contract; tests assert these keys are missing)
     }
 
 
@@ -215,33 +326,6 @@ async def complete_upload(db, user, *, upload_session_id, correlation_id=None, a
     await db[enums.C_UPLOAD_SESSIONS].update_one(
         {"id": upload_session_id}, {"$set": {"state": enums.UP_ASSEMBLING, "updated_at": _now_iso()}})
 
-    # Assemble strictly in index order.
-    buf = bytearray()
-    async for c in db[enums.C_UPLOAD_CHUNKS].find({"upload_session_id": upload_session_id}).sort("index", 1):
-        buf.extend(bytes(c["data"]))
-    assembled = bytes(buf)
-
-    if len(assembled) != up["declared_size"]:
-        await db[enums.C_UPLOAD_SESSIONS].update_one(
-            {"id": upload_session_id}, {"$set": {"state": enums.UP_IN_PROGRESS,
-                                                 "error": "SIZE_MISMATCH", "updated_at": _now_iso()}})
-        raise structured(422, "SIZE_MISMATCH",
-                         f"Assembled size {len(assembled)} != declared {up['declared_size']}.")
-
-    digest = hashlib.sha256(assembled).hexdigest()
-    if digest != up["declared_checksum_sha256"]:
-        await db[enums.C_UPLOAD_SESSIONS].update_one(
-            {"id": upload_session_id}, {"$set": {"state": enums.UP_IN_PROGRESS,
-                                                 "error": "CHECKSUM_MISMATCH", "updated_at": _now_iso()}})
-        await write_event(db, enums.A_UPLOAD_CHECKSUM_MISMATCH, user, property_id=up["property_id"],
-                          correlation_id=correlation_id or up.get("correlation_id"),
-                          entity_refs={"upload_session_id": upload_session_id,
-                                       "scan_session_id": up["scan_session_id"]},
-                          extra={"declared": up["declared_checksum_sha256"], "computed": digest})
-        raise structured(422, "CHECKSUM_MISMATCH",
-                         "Assembled checksum does not match the declared manifest checksum; "
-                         "re-upload the affected chunks.")
-
     tenant_id = up["tenant_id"]
     property_id = up["property_id"]
     art_id = artifact_id or f"rf-art-{uuid.uuid4()}"
@@ -253,53 +337,89 @@ async def complete_upload(db, user, *, upload_session_id, correlation_id=None, a
             await db[enums.C_UPLOAD_SESSIONS].update_one(
                 {"id": upload_session_id},
                 {"$set": {"state": enums.UP_COMPLETED, "artifact_id": art_id, "updated_at": _now_iso()}})
-            await db[enums.C_UPLOAD_CHUNKS].delete_many({"upload_session_id": upload_session_id})
+            await _purge_chunk_metadata_and_mark_staging(db, up)
             return {"upload_session_id": upload_session_id, "state": enums.UP_COMPLETED,
                     "idempotent_replay": True, "artifact": public_view(existing)}
 
     storage_ref = governed_storage_reference(tenant_id, property_id, art_id)
     try:
-        put_result = await object_store.put(storage_ref, assembled,
-                                            up.get("content_type") or "application/octet-stream")
+        assembled = await object_store.compose_or_stream_assemble(
+            tenant_id=tenant_id, property_id=property_id,
+            upload_session_id=upload_session_id, total_chunks=total,
+            final_storage_ref=storage_ref,
+            content_type=up.get("content_type") or "application/octet-stream",
+            declared_size=up["declared_size"],
+            declared_checksum_sha256=up["declared_checksum_sha256"])
+    except object_store.ObjectStoreProviderForbidden as e:
+        await db[enums.C_UPLOAD_SESSIONS].update_one(
+            {"id": upload_session_id}, {"$set": {"state": enums.UP_IN_PROGRESS,
+                                                 "error": "OBJECT_STORE_PROVIDER_FORBIDDEN",
+                                                 "updated_at": _now_iso()}})
+        raise structured(503, "OBJECT_STORE_PROVIDER_FORBIDDEN", str(e))
     except object_store.ObjectStoreError as e:
-        # Integrity already verified; leave the upload resumable and signal a retryable error.
         await db[enums.C_UPLOAD_SESSIONS].update_one(
             {"id": upload_session_id}, {"$set": {"state": enums.UP_IN_PROGRESS,
                                                  "error": "OBJECT_STORE_UNAVAILABLE",
                                                  "updated_at": _now_iso()}})
         raise structured(502, "OBJECT_STORE_UNAVAILABLE",
-                         f"Checksum verified but object storage is unavailable ({e.status}); "
-                         "retry completion.")
+                         f"Checksum assemble/store failed ({e.status}); retry completion.")
+
+    if not assembled.get("ok"):
+        err = assembled.get("error")
+        await db[enums.C_UPLOAD_SESSIONS].update_one(
+            {"id": upload_session_id},
+            {"$set": {"state": enums.UP_IN_PROGRESS, "error": err, "updated_at": _now_iso()}})
+        if err == "SIZE_MISMATCH":
+            raise structured(422, "SIZE_MISMATCH",
+                             f"Assembled size {assembled.get('computed_size')} != "
+                             f"declared {up['declared_size']}.")
+        await write_event(db, enums.A_UPLOAD_CHECKSUM_MISMATCH, user, property_id=property_id,
+                          correlation_id=correlation_id or up.get("correlation_id"),
+                          entity_refs={"upload_session_id": upload_session_id,
+                                       "scan_session_id": up["scan_session_id"]},
+                          extra={"declared": up["declared_checksum_sha256"],
+                                 "computed": assembled.get("computed_checksum_sha256")})
+        raise structured(422, "CHECKSUM_MISMATCH",
+                         "Assembled checksum does not match the declared manifest checksum; "
+                         "re-upload the affected chunks.")
+
+    digest = assembled["checksum_sha256"]
+    put_result = assembled.get("put_result") or {}
+    # Never persist signed URLs even if a provider leaked one.
+    storage_etag = put_result.get("etag") if isinstance(put_result, dict) else None
 
     rec = build_manifest_record(
         tenant_id=tenant_id, property_id=property_id, artifact_type=up["artifact_type"],
         storage_object_reference=storage_ref, content_type=up.get("content_type") or "application/octet-stream",
-        file_size=len(assembled), checksum_sha256=digest,
+        file_size=assembled["bytes_stored"], checksum_sha256=digest,
         correlation_id=correlation_id or up.get("correlation_id"),
         scan_session_id=up["scan_session_id"],
         truth_classification=up.get("truth_classification", enums.UNKNOWN),
         artifact_id=art_id)
     rec["artifact_id"] = art_id
     rec["object_stored"] = True
-    rec["bytes_stored"] = len(assembled)
-    rec["storage_etag"] = put_result.get("etag") if isinstance(put_result, dict) else None
+    rec["bytes_stored"] = assembled["bytes_stored"]
+    rec["storage_etag"] = storage_etag
     rec["upload_session_id"] = upload_session_id
+    # Explicit: never store signed/public URLs on the manifest.
+    rec.pop("signed_url", None)
+    rec.pop("public_url", None)
     await db[enums.C_ARTIFACTS].insert_one(dict(rec))
 
     await db[enums.C_UPLOAD_SESSIONS].update_one(
         {"id": upload_session_id},
         {"$set": {"state": enums.UP_COMPLETED, "artifact_id": art_id,
                   "error": None, "updated_at": _now_iso()}})
-    await db[enums.C_UPLOAD_CHUNKS].delete_many({"upload_session_id": upload_session_id})
+    await _purge_chunk_metadata_and_mark_staging(db, up)
 
     await write_event(db, enums.A_UPLOAD_COMPLETED, user, property_id=property_id,
                       correlation_id=correlation_id or up.get("correlation_id"),
                       entity_refs={"upload_session_id": upload_session_id, "artifact_id": art_id,
                                    "scan_session_id": up["scan_session_id"]},
-                      extra={"bytes_stored": len(assembled), "checksum_verified": True,
+                      extra={"bytes_stored": assembled["bytes_stored"], "checksum_verified": True,
                              "artifact_type": up["artifact_type"]})
     return {"upload_session_id": upload_session_id, "state": enums.UP_COMPLETED,
-            "checksum_verified": True, "bytes_stored": len(assembled),
+            "checksum_verified": True, "bytes_stored": assembled["bytes_stored"],
             "artifact": public_view(rec)}
 
 
@@ -307,10 +427,34 @@ async def abort_upload(db, user, *, upload_session_id, correlation_id=None):
     up = await _load_session(db, upload_session_id)
     if up["state"] == enums.UP_COMPLETED:
         raise structured(409, "UPLOAD_TERMINAL", "Completed upload cannot be aborted.")
+    if up["state"] == enums.UP_ABORTED:
+        # Idempotent abort replay.
+        return {"upload_session_id": upload_session_id, "state": enums.UP_ABORTED,
+                "idempotent_replay": True}
     await db[enums.C_UPLOAD_SESSIONS].update_one(
         {"id": upload_session_id}, {"$set": {"state": enums.UP_ABORTED, "updated_at": _now_iso()}})
-    await db[enums.C_UPLOAD_CHUNKS].delete_many({"upload_session_id": upload_session_id})
+    await _purge_chunk_metadata_and_mark_staging(db, up)
     await write_event(db, enums.A_UPLOAD_ABORTED, user, property_id=up["property_id"],
                       correlation_id=correlation_id or up.get("correlation_id"),
                       entity_refs={"upload_session_id": upload_session_id})
-    return {"upload_session_id": upload_session_id, "state": enums.UP_ABORTED}
+    return {"upload_session_id": upload_session_id, "state": enums.UP_ABORTED,
+            "idempotent_replay": False}
+
+
+async def _purge_chunk_metadata_and_mark_staging(db, up: dict):
+    """Remove Mongo metadata and mark staging objects for governed cleanup.
+
+    Does not fabricate object-store deletion when the provider has no delete API.
+    """
+    indexes = list(up.get("received_indexes") or [])
+    marks = await object_store.mark_upload_staging_for_cleanup(
+        tenant_id=up["tenant_id"], property_id=up["property_id"],
+        upload_session_id=up["id"], indexes=indexes)
+    # Persist only non-sensitive cleanup intent summaries on the session.
+    safe_marks = [{"id": m["id"], "reason": m["reason"],
+                   "deletion_executed": False, "deletion_fabricated": False}
+                  for m in marks]
+    await db[enums.C_UPLOAD_SESSIONS].update_one(
+        {"id": up["id"]},
+        {"$set": {"staging_cleanup_marks": safe_marks, "updated_at": _now_iso()}})
+    await db[enums.C_UPLOAD_CHUNKS].delete_many({"upload_session_id": up["id"]})

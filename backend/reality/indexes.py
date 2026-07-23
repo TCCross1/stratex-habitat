@@ -86,14 +86,23 @@ async def init_reality_indexes(db):
         await db[enums.C_DESIGN].create_index([("base_existing_model_version_id", ASCENDING)],
                                               name="ix_design_base")
         await db[enums.C_DESIGN].create_index([("design_state", ASCENDING)], name="ix_design_state")
-        # H-014B: resumable upload sessions + staged chunks
+        # H-014B: resumable upload sessions + metadata-only staged chunks
         await db[enums.C_UPLOAD_SESSIONS].create_index([("id", ASCENDING)], unique=True, name="ux_upload_id")
         await db[enums.C_UPLOAD_SESSIONS].create_index([("scan_session_id", ASCENDING)],
                                                        name="ix_upload_scan")
         await db[enums.C_UPLOAD_SESSIONS].create_index([("state", ASCENDING)], name="ix_upload_state")
         await db[enums.C_UPLOAD_SESSIONS].create_index([("expires_at", ASCENDING)], name="ix_upload_expires")
+        # Database-enforced upload-session idempotency (partial: key present).
+        await db[enums.C_UPLOAD_SESSIONS].create_index(
+            [("scan_session_id", ASCENDING), ("create_idempotency_key", ASCENDING)],
+            unique=True, name="ux_upload_idempotency",
+            partialFilterExpression={"create_idempotency_key": {"$type": "string"}})
         await db[enums.C_UPLOAD_CHUNKS].create_index(
             [("upload_session_id", ASCENDING), ("index", ASCENDING)], unique=True, name="ux_chunk_session_index")
+        await db[enums.C_UPLOAD_CHUNKS].create_index(
+            [("tenant_id", ASCENDING), ("property_id", ASCENDING)], name="ix_chunk_tenant_prop")
+        await db[enums.C_UPLOAD_CHUNKS].create_index(
+            [("object_reference", ASCENDING)], name="ix_chunk_object_ref")
         logger.info("Reality Studio indexes ensured.")
     except Exception as e:  # pragma: no cover
         logger.error("Reality index init failed: %s", e)
