@@ -16,15 +16,29 @@ public final class RoomCaptureCoordinator: NSObject, RoomCaptureSessionDelegate 
     public var onStateChange: ((CaptureState) -> Void)?
     public var onProgress: ((QualityReport) -> Void)?
 
-    private let captureSession = RoomCaptureSession()
+    private let captureSession: RoomCaptureSession
     private var lowQualityFrames = 0
     private var totalFrames = 0
     private var limitedTrackingFrames = 0
     private var latestReport: QualityReport?
+    private var latestRoom: CapturedRoom?
+    private var latestStructure: DerivedStructure?
+    private var exportedArtifact: Data?
+
+    /// Expose the RoomPlan session (may be the host `RoomCaptureView`'s session).
+    public var session: RoomCaptureSession { captureSession }
 
     public static var isSupported: Bool { RoomCaptureSession.isSupported }
 
     public override init() {
+        self.captureSession = RoomCaptureSession()
+        super.init()
+        captureSession.delegate = self
+    }
+
+    /// Bind to a host-provided session (e.g. `RoomCaptureView.captureSession`).
+    public init(captureSession: RoomCaptureSession) {
+        self.captureSession = captureSession
         super.init()
         captureSession.delegate = self
     }
@@ -46,17 +60,35 @@ public final class RoomCaptureCoordinator: NSObject, RoomCaptureSessionDelegate 
     }
 
     public func pause() { setState(.paused) }
-    public func resume() { setState(.capturing) }
+    public func resume() {
+        guard state == .paused || state == .failed else { return }
+        setState(.capturing)
+        var config = RoomCaptureSession.Configuration()
+        config.isCoachingEnabled = true
+        captureSession.run(configuration: config)
+    }
 
     public func finish() {
         setState(.finalizing)
         captureSession.stop()
     }
 
+    public func cancel() {
+        captureSession.stop()
+        setState(.cancelled)
+    }
+
+    /// Handle app backgrounding / interruption without inventing a second state machine.
+    public func handleInterruption() {
+        if state == .capturing { pause() }
+    }
+
     // MARK: RoomCaptureSessionDelegate
     public func captureSession(_ session: RoomCaptureSession, didUpdate room: CapturedRoom) {
         totalFrames += 1
+        latestRoom = room
         latestReport = buildReport(from: room)
+        latestStructure = buildStructure(from: room, report: latestReport)
         if let r = latestReport { onProgress?(r) }
     }
 
@@ -70,8 +102,31 @@ public final class RoomCaptureCoordinator: NSObject, RoomCaptureSessionDelegate 
 
     public func captureSession(_ session: RoomCaptureSession,
                                didEndWith data: CapturedRoomData, error: Error?) {
-        if error != nil { setState(.failed) }
+        if error != nil {
+            setState(.failed)
+            return
+        }
+        // Stage USDZ from the latest CapturedRoom when possible; otherwise stage
+        // parametric JSON so the governed upload path still has checksummable bytes.
+        if let room = latestRoom {
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("stratex-capture-\(UUID().uuidString).usdz")
+            if (try? room.export(to: url)) != nil {
+                exportedArtifact = try? Data(contentsOf: url)
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+        if exportedArtifact == nil, let structure = latestStructure,
+           let encoded = try? JSONEncoder().encode(structure) {
+            exportedArtifact = encoded
+        }
+        // Remain in finalizing until the host begins upload via CaptureFlowController.
+        _ = data
     }
+
+    public func currentReport() -> QualityReport? { latestReport }
+    public func currentStructure() -> DerivedStructure? { latestStructure }
+    public func currentArtifactData() -> Data? { exportedArtifact }
 
     /// Derive a deterministic quality report from a `CapturedRoom` snapshot.
     /// `CapturedRoom.floors` is iOS 17+; on iOS 16 the floor metrics fall back
@@ -112,7 +167,39 @@ public final class RoomCaptureCoordinator: NSObject, RoomCaptureSessionDelegate 
         return report
     }
 
-    public func currentReport() -> QualityReport? { latestReport }
+    private func buildStructure(from room: CapturedRoom, report: QualityReport?) -> DerivedStructure {
+        var openings: [DerivedOpening] = []
+        for d in room.doors {
+            openings.append(DerivedOpening(type: "DOOR", wall: wallLabel(for: d.transform), label: "Door"))
+        }
+        for w in room.windows {
+            openings.append(DerivedOpening(type: "WINDOW", wall: wallLabel(for: w.transform), label: "Window"))
+        }
+        for o in room.openings {
+            openings.append(DerivedOpening(type: "OPENING", wall: wallLabel(for: o.transform), label: "Opening"))
+        }
+        var unknowns: [String] = []
+        if (report?.surfaceCoverage["CEILING"] ?? 0) < 0.7 {
+            unknowns.append("Ceiling cavity / upper surfaces incomplete")
+        }
+        if (report?.surfaceCoverage["FLOOR"] ?? 0) < 0.8 {
+            unknowns.append("Floor area partially occluded or incomplete")
+        }
+        return DerivedStructure(
+            roomLabel: "Captured Room",
+            dimensionsM: report?.dimensionsM ?? [:],
+            hasFloor: (report?.surfaceCoverage["FLOOR"] ?? 0) > 0,
+            hasCeiling: (report?.surfaceCoverage["CEILING"] ?? 0) > 0,
+            openings: openings,
+            unknowns: unknowns)
+    }
+
+    private func wallLabel(for transform: simd_float4x4) -> String {
+        let x = transform.columns.3.x
+        let z = transform.columns.3.z
+        if abs(x) >= abs(z) { return x >= 0 ? "East" : "West" }
+        return z >= 0 ? "South" : "North"
+    }
 }
 
 #else
@@ -121,6 +208,18 @@ public final class RoomCaptureCoordinator: NSObject, RoomCaptureSessionDelegate 
 // builds pull in the real implementation above.
 public final class RoomCaptureCoordinator {
     public static var isSupported: Bool { false }
+    public private(set) var state: CaptureState = .idle
+    public var onStateChange: ((CaptureState) -> Void)?
+    public var onProgress: ((QualityReport) -> Void)?
     public init() {}
+    public func requestAuthorizationAndStart() { state = .failed; onStateChange?(state) }
+    public func pause() {}
+    public func resume() {}
+    public func finish() {}
+    public func cancel() { state = .cancelled }
+    public func handleInterruption() {}
+    public func currentReport() -> QualityReport? { nil }
+    public func currentStructure() -> DerivedStructure? { nil }
+    public func currentArtifactData() -> Data? { nil }
 }
 #endif

@@ -13,6 +13,9 @@ public struct GuardianFinding: Codable, Equatable {
     public let code: String
     public let severity: GuardianVerdict
     public let message: String
+    public init(code: String, severity: GuardianVerdict, message: String) {
+        self.code = code; self.severity = severity; self.message = message
+    }
 }
 
 public struct GuardianResult: Codable, Equatable {
@@ -23,6 +26,14 @@ public struct GuardianResult: Codable, Equatable {
     public let findings: [GuardianFinding]
     public let missingAreas: [String]
     public let recommendation: String
+    public init(guardianVersion: String, verdict: GuardianVerdict, coverageState: CoverageState,
+                score: Int, findings: [GuardianFinding], missingAreas: [String],
+                recommendation: String) {
+        self.guardianVersion = guardianVersion; self.verdict = verdict
+        self.coverageState = coverageState; self.score = score
+        self.findings = findings; self.missingAreas = missingAreas
+        self.recommendation = recommendation
+    }
 }
 
 public enum ScanQualityGuardian {

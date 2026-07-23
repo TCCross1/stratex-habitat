@@ -86,3 +86,20 @@ android-sdk/
 credentials.json
 *.key
 .credentials
+
+# Xcode / Apple signing (never commit)
+**/xcuserdata/
+**/*.xcuserstate
+**/*.xccheckout
+**/*.moved-aside
+DerivedData/
+*.mobileprovision
+*.p12
+*.cer
+*.certSigningRequest
+ios/**/Secrets.plist
+ios/**/*.xcconfig.local
+
+# H-014B.3 physical-device runtime evidence (templates/docs remain tracked)
+test_reports/h014b3-device/**
+!test_reports/h014b3-device/README.md
