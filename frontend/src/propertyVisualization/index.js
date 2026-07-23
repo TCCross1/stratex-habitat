@@ -23,3 +23,22 @@ export {
   truthBadgeLabel,
   assertNoHabitatTruthWrite,
 } from "./lidarIndependentFoundations";
+export {
+  REALITY_LIFECYCLE_STATES,
+  REALITY_TRUTH_STATES,
+  REALITY_DATA_ORIGINS,
+  NORMALIZE_RESULTS,
+  LIFECYCLE_LABELS,
+  SUPPORTED_3D_FORMATS,
+  emptyRealityModel,
+  canDisplayAsApproved,
+} from "./reality/realityModelContract";
+export { normalizeRealityModel } from "./reality/normalizeRealityModel";
+export {
+  selectRealityVisualizationSource,
+  preferNewerApproved,
+} from "./reality/selectVisualizationSource";
+export {
+  fetchRealityModelProjection,
+  passportProjectionAdapter,
+} from "./reality/passportProjectionAdapter";

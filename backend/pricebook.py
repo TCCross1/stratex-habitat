@@ -29,7 +29,7 @@ PRICE_SOURCE = "HABITAT_GOVERNED_PRICE_BOOK"
 REGION_BASIS = {
     "national": "US National Average",
     "regional": "South Central US (regional)",
-    "local": "Austin, TX (local multiplier applied)",
+    "local": "Lexington, KY (local multiplier applied)",
 }
 DEFAULT_BASIS = "local"
 

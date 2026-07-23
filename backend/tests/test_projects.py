@@ -63,7 +63,7 @@ class TestProjectsUnitAndIntegration:
             "id": self.alice_prop_id,
             "owner_id": self.alice_id,
             "name": "Alice's Oasis",
-            "location": "Austin, TX",
+            "location": "Lexington, Kentucky",
             "status": "Connected"
         })
 
@@ -86,7 +86,7 @@ class TestProjectsUnitAndIntegration:
             "owner_user_id": self.bob_id,
             "company_name": "Bob's Premium Renovations",
             "description": "Specialized residential contractor serving Central Texas",
-            "service_area": "Austin Metro, TX",
+            "service_area": "Central Kentucky (sample)",
             "trades": ["Renovation"],
             "public_rating": 4.8
         })
@@ -97,7 +97,7 @@ class TestProjectsUnitAndIntegration:
             "owner_user_id": self.charlie_id,
             "company_name": "Charlie's Roofs Only",
             "description": "Exclusively roofing solutions",
-            "service_area": "Austin Metro, TX",
+            "service_area": "Central Kentucky (sample)",
             "trades": ["Roofing"],
             "public_rating": 4.5
         })

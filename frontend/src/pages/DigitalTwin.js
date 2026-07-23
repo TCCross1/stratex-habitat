@@ -6,6 +6,7 @@ import { useDevice } from "@/hooks/useDevice";
 import { Sparkline, Change } from "@/components/Primitives";
 import Inspector from "@/components/Inspector";
 import PropertyVisualization, { StudioEmptyState } from "@/components/property/PropertyVisualization";
+import ExistingRoomTwinPanel from "@/components/reality/ExistingRoomTwinPanel";
 import { getCentralKentuckyDemoVisualization } from "@/propertyVisualization/centralKentuckyDemoHome";
 import { Switch } from "@/components/ui/switch";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -185,6 +186,9 @@ export default function DigitalTwin() {
             <button type="button" className="rail-btn !w-8 !h-8" aria-label="Measure"><Ruler size={15} /></button>
           </div>
         </PropertyVisualization>
+
+        {/* H-014C.1 — read-only existing-room twin (governed contract; no fabricated geometry) */}
+        <ExistingRoomTwinPanel property={property} propertyId={pid || demoViz.propertyId} />
 
         {/* LiDAR-independent studio empty foundations (not fabricated content) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4" data-testid="studio-empty-foundations">

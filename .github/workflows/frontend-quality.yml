@@ -1,0 +1,56 @@
+name: frontend-quality (H-014C.1)
+
+# Dedicated frontend quality gate. Deterministic; no live production backend;
+# no secret-dependent integrations. Installs from the committed yarn.lock.
+
+on:
+  push:
+    branches: [ "main", "emergent/**", "cursor/**" ]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend-quality.yml"
+  pull_request:
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend-quality.yml"
+  workflow_dispatch: {}
+
+jobs:
+  frontend:
+    name: Unit tests + production build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      CI: "true"
+      # Placeholder for CRA env reads during build; unit tests mock API clients.
+      REACT_APP_BACKEND_URL: "http://127.0.0.1:9"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "yarn"
+          cache-dependency-path: frontend/yarn.lock
+
+      - name: Enable Corepack Yarn
+        run: corepack enable
+
+      - name: Install using committed lockfile
+        run: yarn install --frozen-lockfile
+
+      - name: Frontend unit tests (non-watch)
+        run: yarn test --watchAll=false --ci --forceExit
+
+      - name: Type / compile gate (production build)
+        run: yarn build
+
+      # Repository has no dedicated lint npm script; eslint ships via react-scripts.
+      # Production build exercises Babel/webpack compile failures.
+      - name: Document lint posture
+        run: |
+          echo "No standalone eslint script is defined in package.json."
+          echo "CI relies on Jest unit tests + CI=true production build."
+          echo "Registry: public npm via Yarn frozen lockfile."

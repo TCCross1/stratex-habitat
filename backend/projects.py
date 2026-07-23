@@ -587,14 +587,14 @@ async def generate_pip(proj_id: str, user: dict = Depends(get_project_user), db 
         "target_timeline": project["target_timeline"],
         "product_preferences": products,
         "existing_condition_references": ["Unverified homeowner supplied kitchen dimensions"],
-        "Passport_condition_references": ["Villa Horizon Deed", "Property age"],
+        "Passport_condition_references": ["Central Kentucky Demonstration Home deed sample", "Property age"],
         "inspiration_references": [],
         "assumptions": assumptions,
         "risks": ["Attic deflection", "Undersized gas line"],
         "required_verifications": [c for c in selected_concept.get("verification_requirements", [])],
         "required_trades": ["Renovation"],
-        "service_location": "Austin Metro (Redacted for Privacy)",
-        "routing_metadata": {"requires_trade": "Renovation", "service_area": "Austin Metro, TX"},
+        "service_location": "Central Kentucky (Redacted for Privacy)",
+        "routing_metadata": {"requires_trade": "Renovation", "service_area": "Central Kentucky"},
         "immutable_digest": f"sha256:{uuid.uuid4().hex}"
     }
     
@@ -633,7 +633,7 @@ async def request_quotes(proj_id: str, user: dict = Depends(get_project_user), d
         "owner_id": user["id"],
         "owner_name": user["name"],
         "property_id": project["property_id"],
-        "property_name": "Villa Horizon",
+        "property_name": "Central Kentucky Demonstration Home",
         "finding_id": None,
         "habitat_project_id": proj_id,
         "project_intent_package_id": pip["id"],
@@ -652,10 +652,10 @@ async def request_quotes(proj_id: str, user: dict = Depends(get_project_user), d
     }
     
     # Deterministic contractor matching: Required Trade + Service Area + Account Status
-    # Active Renovation contractors serving Austin Metro, TX
+    # Active Renovation contractors serving Central Kentucky (demo seed)
     contractors = await db.contractors.find({
         "trades": "Renovation",
-        "service_area": {"$regex": "Austin", "$options": "i"}
+        "service_area": {"$regex": "Kentucky|Lexington", "$options": "i"}
     }).to_list(100)
     
     routed_to = []
@@ -663,8 +663,8 @@ async def request_quotes(proj_id: str, user: dict = Depends(get_project_user), d
     for c in contractors:
         routed_to.append(c["id"])
         matching_rationales[c["id"]] = {
-            "homeowner_explanation": f"{c['company_name']} is an active premium renovation contractor with a {c['public_rating']} rating serving the Austin Metro area.",
-            "contractor_explanation": f"Matched because your registered trade 'Renovation' and service area '{c['service_area']}' match the project criteria for Austin location."
+            "homeowner_explanation": f"{c['company_name']} is an active premium renovation contractor with a {c['public_rating']} rating serving Central Kentucky.",
+            "contractor_explanation": f"Matched because your registered trade 'Renovation' and service area '{c['service_area']}' match the project criteria for Central Kentucky."
         }
         
     # If no Renovation contractor is matched, fallback (like design studio) to any active contractor for the demo vertical slice, but log it clearly

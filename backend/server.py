@@ -248,6 +248,81 @@ async def list_assets(pid: str, user: dict = Depends(get_current_user)):
     return await db.assets.find({"property_id": pid}, {"_id": 0}).to_list(200)
 
 
+@api_router.get("/properties/{pid}/reality-model")
+async def get_reality_model(pid: str, user: dict = Depends(get_current_user)):
+    """
+    Homeowner-safe read-only EXISTING-room reality model projection.
+    Never returns raw storage secrets. Never approves or promotes geometry.
+    """
+    prop = await db.properties.find_one({"id": pid}, {"_id": 0})
+    if not prop:
+        raise HTTPException(status_code=404, detail="Property not found")
+    # Tenant isolation — homeowners only their property; privileged roles may read
+    if user["role"] not in ("executive", "broker_admin", "reviewer") and prop.get("owner_id") != user["id"]:
+        raise HTTPException(status_code=404, detail="Property not found")
+
+    is_demo = (
+        prop.get("is_demo_fixture") is True
+        or prop.get("visualization_data_origin") == "demo"
+        or prop.get("visualization_truth_status") == "sample_only"
+        or prop.get("visualization_profile") == "central-kentucky-demo-home"
+    )
+
+    if is_demo:
+        return {
+            "property_id": pid,
+            "schema_version": "h014c1.reality.v1",
+            "model_version": "demo-exterior-v1",
+            "lifecycle_state": "demo_sample",
+            "truth_status": "sample_only",
+            "data_origin": "demo",
+            "confidence_state": "demo",
+            "source_system": "habitat",
+            "source_type": "existing_geometry",
+            "geometry_kind": "existing",
+            "floor_plan_available": False,
+            "three_d_model_available": False,
+            "dimensions_available": False,
+            "openings_available": False,
+            "surfaces_available": False,
+            "objects_available": False,
+            "adjoining_room_alignment_available": False,
+            "thumbnail_ref": prop.get("thumbnail"),
+            "preview_ref": prop.get("twin_image"),
+            "unknown_fields": ["walls", "openings", "dimensions", "model_3d_ref"],
+            "missing_elements": ["approved_floor_plan", "approved_3d_model"],
+            "display_disclaimer": (
+                "The Central Kentucky Demonstration Home is demonstration/sample-only data. "
+                "It is not a physically validated property scan or approved Passport model."
+            ),
+            "recapture_required": False,
+            "review_required": False,
+            "completeness_state": "demo_incomplete",
+        }
+
+    # Non-demo: no approved projection stored in Habitat — controlled awaiting/unavailable
+    return {
+        "property_id": pid,
+        "schema_version": "h014c1.reality.v1",
+        "model_version": None,
+        "lifecycle_state": "awaiting_scan",
+        "truth_status": "unknown",
+        "data_origin": "unknown",
+        "confidence_state": "unknown",
+        "source_system": "habitat",
+        "source_type": "existing_geometry",
+        "geometry_kind": "existing",
+        "floor_plan_available": False,
+        "three_d_model_available": False,
+        "dimensions_available": False,
+        "openings_available": False,
+        "display_disclaimer": "Awaiting an approved property scan.",
+        "unknown_fields": ["walls", "openings", "dimensions", "model_3d_ref"],
+        "missing_elements": ["approved_floor_plan", "approved_3d_model"],
+        "completeness_state": "unknown",
+    }
+
+
 @api_router.get("/assets/{aid}")
 async def get_asset(aid: str, user: dict = Depends(get_current_user)):
     a = await db.assets.find_one({"id": aid}, {"_id": 0})
@@ -686,8 +761,16 @@ async def scenario_request_quote(sid: str, body: DesignQuoteReq, user: dict = De
     zone_labels = [next((z["label"] for z in ZONES if z["id"] == zid), zid) for zid in zones]
     qid = str(uuid.uuid4())
     desc_lines = [f"{s.get('product')} — {s.get('color')}" for s in sc.get("selections", [])]
+    prop_doc = await db.properties.find_one(
+        {"id": sc["property_id"]}, {"_id": 0, "habitat_display_name": 1, "name": 1}
+    ) or {}
+    prop_name = (
+        prop_doc.get("habitat_display_name")
+        or prop_doc.get("name")
+        or "Central Kentucky Demonstration Home"
+    )
     quote = {"id": qid, "owner_id": user["id"], "owner_name": user["name"],
-             "property_id": sc["property_id"], "property_name": "Villa Horizon",
+             "property_id": sc["property_id"], "property_name": prop_name,
              "finding_id": None, "title": f"Design Studio — {sc['name']}",
              "category": "Renovation", "project_type": body.project_type,
              "description": f"Exterior {body.project_type}: " + "; ".join(desc_lines),
