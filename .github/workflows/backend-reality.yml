@@ -1,0 +1,59 @@
+name: backend-reality (H-014A/H-014B)
+
+on:
+  push:
+    branches: [ "main", "emergent/**" ]
+    paths:
+      - "backend/reality/**"
+      - "backend/tests/test_h014a_reality.py"
+      - "backend/tests/test_h014b_capture.py"
+      - ".github/workflows/backend-reality.yml"
+  pull_request:
+    paths:
+      - "backend/reality/**"
+      - "backend/tests/test_h014a_reality.py"
+      - "backend/tests/test_h014b_capture.py"
+  workflow_dispatch: {}
+
+jobs:
+  reality-unit:
+    name: Deterministic unit tests (no external infra)
+    runs-on: ubuntu-latest
+    env:
+      # conftest resolves config from the environment first. The deterministic
+      # unit subset never performs network/DB I/O, so a placeholder URL is enough
+      # for import-time config resolution.
+      REACT_APP_BACKEND_URL: "http://localhost:8001"
+      MONGO_URL: "mongodb://localhost:27017"
+      DB_NAME: "habitat_ci"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Byte-compile the reality package (syntax gate)
+        working-directory: backend
+        run: python -m compileall -q reality
+      - name: Run deterministic Guardian + state-mapping + validator unit tests
+        working-directory: backend
+        run: |
+          python -m pytest -q \
+            tests/test_h014b_capture.py::TestGuardianDeterminism \
+            tests/test_h014b_capture.py::TestNativeStateMapping \
+            tests/test_h014a_reality.py::TestCoordinateTransformValidation \
+            tests/test_h014a_reality.py::TestSpatialRelationshipValidation \
+            tests/test_h014a_reality.py::TestTruthPromotionGuard \
+            tests/test_h014a_reality.py::TestArtifactChecksum \
+            tests/test_h014a_reality.py::TestStorageReferenceValidation \
+            tests/test_h014a_reality.py::TestReferenceRoomDeterminism
+
+  # NOTE: The full governed HTTP integration suite (resumable upload, capture
+  # proof, authorization, object-storage round-trip) runs against a live backend
+  # + MongoDB + Emergent object storage (EMERGENT_LLM_KEY). It is executed in the
+  # deployment environment, not in this basic CI runner. See
+  # docs/h014b/H014B_CI_AND_TESTING.md.

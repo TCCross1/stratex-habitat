@@ -1,0 +1,51 @@
+{
+  "summary": "H-014B frontend-only verification. Logged in via /login demo-homeowner quick button (alex@stratexhabitat.com), redirected to /twin, SPA-navigated via left-nav 'Reality Studio (Dev)' to /reality-foundation. Verified tabbed shell (reality-studio-page) with both tabs, no-regression on Reference Room (H-014A) tab, and full governed capture proof render on Capture Review (H-014B) tab. All 33 assertions passed. Loading state ('reality-capture-loading') was observed on tab mount before the ~1-3s server round-trip resolved to the dashboard. Read-only enforced (0 button/input/textarea/select elements inside reality-capture-page). Tab toggle back to Reference Room re-renders H-014A content and unmounts capture page.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "RealityStudioFoundation.js:456 — tab state is local to the page component so switching tabs re-mounts each view, causing the capture-proof bootstrap POST to re-run on every tab switch. Consider caching the response or hoisting state so the ~1-3s round-trip is not repeated needlessly.",
+    "RealityStudioFoundation.js:169 — Row for `em.version` renders raw value without a fallback (`v={em.version}`), unlike sibling rows using `|| '—'`. Cosmetic parity issue.",
+    "RealityStudioFoundation.js:387 — CandidateExistingModel panel wires `entity_count` from top-level `data.entity_count` rather than `cand.entity_count`. Currently harmless because both fields equal 12, but if the two ever diverge the candidate panel will silently show the wrong number."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped per request)", "frontend": "100%"},
+  "test_credentials": "Homeowner via [data-testid=demo-homeowner] on /login (alex@stratexhabitat.com / Demo123!). After login lands on /twin, not /dashboard.",
+  "seed_data_creation": "None. Used POST /reality/v1/development/capture-proof/bootstrap (idempotent dev fixture).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Login redirects to /twin, then SPA-click left-nav 'Reality Studio (Dev)' → /reality-foundation. Tab testids: reality-tab-reference (default) and reality-tab-capture. Key H-014B testids verified: reality-capture-page, reality-capture-loading (briefly), reality-capture-guardian, reality-capture-verdict (contains 'PASS' and 'score 100/100'), reality-capture-no-findings, reality-capture-upload-chunks ('5'), reality-capture-checksum-badge ('checksum verified'), reality-capture-state-mapping + reality-capture-timeline (all 9 states CREATED→ACCEPTED with native: substates), reality-capture-candidate-state ('DRAFT_CANDIDATE', NOT VERIFIED_EXISTING), reality-capture-entity-count ('12'), only 'Measured existing' truth chip in candidate panel, reality-capture-preview containing both reality-foundation-svg (2D) and reality-capture-iso (3D). Zero editable controls (button/input/textarea/select) inside reality-capture-page — read-only confirmed. Tab toggle correctly re-renders H-014A view and unmounts capture view.",
+  "verified_assertions": {
+    "login_via_demo_homeowner": true,
+    "spa_nav_to_reality_studio": true,
+    "reality_studio_shell_with_tabs": true,
+    "reference_tab_default_no_regression": true,
+    "ref_dim_width_4.88_m": true,
+    "ref_entity_count_12": true,
+    "ref_model_state_DRAFT_CANDIDATE": true,
+    "ref_fixture_warning_visible": true,
+    "capture_tab_click_triggers_bootstrap": true,
+    "capture_loading_state_shown": true,
+    "capture_page_rendered": true,
+    "guardian_verdict_PASS_score_100_100": true,
+    "guardian_no_findings_all_checks_passed": true,
+    "upload_chunks_equals_5": true,
+    "upload_checksum_verified_badge": true,
+    "upload_object_stored_badge": true,
+    "state_timeline_all_9_states_CREATED_to_ACCEPTED": true,
+    "state_timeline_includes_native_substates": true,
+    "candidate_state_DRAFT_CANDIDATE_not_VERIFIED_EXISTING": true,
+    "candidate_entity_count_12": true,
+    "candidate_truth_chips_measured_existing_only": true,
+    "preview_2d_svg_present": true,
+    "preview_iso_svg_present": true,
+    "capture_page_read_only_zero_editable_controls": true,
+    "tab_toggle_back_to_reference_works": true,
+    "capture_view_unmounted_when_reference_tab_active": true
+  }
+}

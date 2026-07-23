@@ -181,3 +181,69 @@ A_INVALID_RELATIONSHIP_REJECTED = "REALITY_INVALID_RELATIONSHIP_REJECTED"
 A_SPATIAL_ENTITY_CREATED = "REALITY_SPATIAL_ENTITY_CREATED"
 
 PRIVILEGED_ROLES = {"executive", "broker_admin", "reviewer"}
+
+# =========================================================================
+# H-014B — Real LiDAR capture proof + AI Scan Quality Guardian
+# =========================================================================
+
+# --- Additional collections ----------------------------------------------
+C_UPLOAD_SESSIONS = "reality_upload_sessions"
+C_UPLOAD_CHUNKS = "reality_upload_chunks"
+
+# --- Native (iOS RoomPlan / ARKit) capture states ------------------------
+# The native client exposes a small, explicit capture state machine. Each
+# native state maps to EXACTLY ONE canonical backend scan-session state so the
+# governed lifecycle remains the single source of truth (never the device).
+NATIVE_CAPTURE_STATES = {
+    "IDLE", "AUTHORIZED", "READY", "CAPTURING", "PAUSED",
+    "FINALIZING", "UPLOADING", "UPLOADED", "PROCESSING", "COMPLETE",
+    "FAILED", "CANCELLED",
+}
+NATIVE_TO_SCAN_STATE = {
+    "IDLE": SCAN_CREATED,
+    "AUTHORIZED": SCAN_CREATED,
+    "READY": SCAN_CAPTURE_READY,
+    "CAPTURING": SCAN_CAPTURE_IN_PROGRESS,
+    "PAUSED": SCAN_CAPTURE_PAUSED,
+    "FINALIZING": SCAN_UPLOAD_PENDING,
+    "UPLOADING": SCAN_UPLOAD_IN_PROGRESS,
+    "UPLOADED": SCAN_UPLOAD_COMPLETE,
+    "PROCESSING": SCAN_PROCESSING_IN_PROGRESS,
+    "COMPLETE": SCAN_QUALITY_REVIEW,
+    "FAILED": SCAN_FAILED_RECOVERABLE,
+    "CANCELLED": SCAN_CANCELLED,
+}
+
+# --- Resumable upload session lifecycle ----------------------------------
+UP_INITIATED = "INITIATED"
+UP_IN_PROGRESS = "IN_PROGRESS"
+UP_ASSEMBLING = "ASSEMBLING"
+UP_COMPLETED = "COMPLETED"
+UP_ABORTED = "ABORTED"
+UP_FAILED = "FAILED"
+UPLOAD_TERMINAL = {UP_COMPLETED, UP_ABORTED}
+
+MAX_CHUNK_BYTES = 8 * 1024 * 1024            # < 16 MB BSON document limit (chunk staged in Mongo)
+MIN_CHUNK_BYTES = 1
+MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024    # 2 GiB governed per-artifact cap
+MAX_TOTAL_CHUNKS = 4096                       # governed fan-out cap
+
+# --- Scan Quality Guardian verdicts --------------------------------------
+GUARDIAN_VERSION = "1.0.0"
+GUARDIAN_PASS = "PASS"
+GUARDIAN_WARN = "WARN"
+GUARDIAN_FAIL = "FAIL"
+GUARDIAN_VERDICTS = {GUARDIAN_PASS, GUARDIAN_WARN, GUARDIAN_FAIL}
+COVERAGE_COMPLETE = "COMPLETE"
+COVERAGE_PARTIAL = "PARTIAL"
+COVERAGE_INCOMPLETE = "INCOMPLETE"
+
+# --- H-014B audit event types --------------------------------------------
+A_CAPTURE_PROGRESS = "REALITY_CAPTURE_PROGRESS_RECORDED"
+A_UPLOAD_INITIATED = "REALITY_UPLOAD_INITIATED"
+A_UPLOAD_COMPLETED = "REALITY_UPLOAD_COMPLETED"
+A_UPLOAD_CHECKSUM_MISMATCH = "REALITY_UPLOAD_CHECKSUM_MISMATCH"
+A_UPLOAD_ABORTED = "REALITY_UPLOAD_ABORTED"
+A_GUARDIAN_EVALUATED = "REALITY_SCAN_GUARDIAN_EVALUATED"
+A_CANDIDATE_GENERATED = "REALITY_CANDIDATE_MODEL_GENERATED"
+A_CAPTURE_PROOF_BOOTSTRAPPED = "REALITY_CAPTURE_PROOF_BOOTSTRAPPED"
