@@ -61,7 +61,9 @@ public final class RoomCaptureCoordinator: NSObject, RoomCaptureSessionDelegate 
     }
 
     public func captureSession(_ session: RoomCaptureSession, didProvide instruction: RoomCaptureSession.Instruction) {
-        if instruction == .lowTexture || instruction == .darkness || instruction == .slowDown {
+        // RoomPlan Instruction cases (iOS 16+): lowTexture, turnOnLight, slowDown,
+        // moveCloseToWall, moveAwayFromWall, normal. There is no `.darkness` member.
+        if instruction == .lowTexture || instruction == .turnOnLight || instruction == .slowDown {
             lowQualityFrames += 1
         }
     }
@@ -72,18 +74,25 @@ public final class RoomCaptureCoordinator: NSObject, RoomCaptureSessionDelegate 
     }
 
     /// Derive a deterministic quality report from a `CapturedRoom` snapshot.
+    /// `CapturedRoom.floors` is iOS 17+; on iOS 16 the floor metrics fall back
+    /// so the package retains the declared iOS 16 minimum deployment target.
     private func buildReport(from room: CapturedRoom) -> QualityReport {
         let walls = room.walls
-        let floors = room.floors
+        let floorDims: [SIMD3<Float>]
+        if #available(iOS 17.0, *) {
+            floorDims = room.floors.map { $0.dimensions }
+        } else {
+            floorDims = []
+        }
         // Coverage heuristics derived from confidence + surface presence.
         let wallHigh = walls.filter { $0.confidence == .high }.count
         let wallCov = walls.isEmpty ? 0 : Double(wallHigh) / Double(max(walls.count, 4))
-        let floorCov = floors.isEmpty ? 0.0 : 0.9
+        let floorCov = floorDims.isEmpty ? 0.0 : 0.9
         let ceilingCov = 0.8   // RoomPlan does not always model ceilings; estimated
-        let area = floors.reduce(0.0) { $0 + Double($1.dimensions.x * $1.dimensions.z) }
+        let area = floorDims.reduce(0.0) { $0 + Double($1.x * $1.z) }
         let openings = room.openings.count + room.doors.count + room.windows.count
         let lowFrac = totalFrames == 0 ? 0 : Double(lowQualityFrames) / Double(totalFrames)
-        let bbox = room.floors.first?.dimensions ?? SIMD3<Float>(0, 0, 0)
+        let bbox = floorDims.first ?? SIMD3<Float>(0, 0, 0)
         let heights = walls.map { Double($0.dimensions.y) }
         let height = heights.max() ?? 2.7
 
