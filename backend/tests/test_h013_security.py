@@ -76,15 +76,20 @@ class TestFixtureGate:
         assert served["_provenance"]["authoritative"] is False
         assert served["_provenance"]["data_source"] == "DETERMINISTIC_FIXTURE"
 
-    def test_explicit_override_wins(self, monkeypatch):
-        # Production but explicitly enabled -> enabled.
+    def test_explicit_override_non_production_only(self, monkeypatch):
+        # H-014A.2: production ALWAYS disables fixtures — enable flag cannot override.
         monkeypatch.setenv("HABITAT_ENV", "production")
         monkeypatch.setenv("HABITAT_ENABLE_FIXTURES", "true")
-        assert fx.fixtures_enabled() is True
+        assert fx.fixtures_enabled() is False
+        with pytest.raises(fx.FixtureDisabledError):
+            fx.require_fixtures("roof_condition")
         # Development but explicitly disabled -> disabled.
         monkeypatch.setenv("HABITAT_ENV", "development")
         monkeypatch.setenv("HABITAT_ENABLE_FIXTURES", "false")
         assert fx.fixtures_enabled() is False
+        # Development + true -> permitted.
+        monkeypatch.setenv("HABITAT_ENABLE_FIXTURES", "true")
+        assert fx.fixtures_enabled() is True
 
 
 # ---------------------------------------------------------------------------

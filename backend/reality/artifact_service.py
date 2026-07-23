@@ -136,7 +136,8 @@ async def create_manifest(db, user, *, scan_session_id, body: dict, correlation_
     tenant_id = server_tenant_id()
     property_id = session["property_id"]
     if session.get("tenant_id") != tenant_id:
-        raise structured(403, "SCAN_ACCESS_DENIED", "Cross-tenant scan session.")
+        # H-014A.2: uniform non-disclosure for unauthorized/cross-tenant scan lookups.
+        raise not_found_nondisclosure()
 
     source_ids = body.get("source_artifact_ids") or []
     for sid in source_ids:

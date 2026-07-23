@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from . import enums
 from .authz import structured, assert_truth_promotion_allowed, validate_classifications
 from .audit_service import write_event
+from .geometry_reference import resolve_geometry_reference, public_spatial_entity
 
 
 def _now_iso() -> str:
@@ -152,6 +153,9 @@ async def create_entity(db, user, *, property_id, body: dict, correlation_id):
         raise
 
     entity_id = f"rf-ent-{uuid.uuid4()}"
+    # H-014A.2: governed geometry_reference (artifact: / fixture:) — never raw storage/URLs.
+    geometry_reference = await resolve_geometry_reference(
+        db, body.get("geometry_reference"), tenant_id=tenant_id, property_id=property_id)
     rec = build_entity_record(
         tenant_id=tenant_id, property_id=property_id,
         entity_type=body["entity_type"], label=resolve_label(body),
@@ -160,7 +164,7 @@ async def create_entity(db, user, *, property_id, body: dict, correlation_id):
         confidence=body.get("confidence", "MEDIUM"), correlation_id=correlation_id,
         parent_entity_id=body.get("parent_entity_id"), building_id=body.get("building_id"),
         opening_ref=body.get("opening_ref"), geometry_type=body.get("geometry_type", "NONE"),
-        geometry_reference=body.get("geometry_reference"), units=body.get("units", "METRIC_M"),
+        geometry_reference=geometry_reference, units=body.get("units", "METRIC_M"),
         existing_state=body.get("existing_state", enums.EXISTING),
         access_classification=body.get("access_classification", "HOMEOWNER"),
         created_by=user.get("id"), entity_id=entity_id, unknowns=body.get("unknowns"),
@@ -189,13 +193,13 @@ async def create_entity(db, user, *, property_id, body: dict, correlation_id):
                       entity_refs={"spatial_entity_id": entity_id, "parent_entity_id": rec.get("parent_entity_id")},
                       extra={"entity_type": rec["entity_type"], "truth_classification": truth})
     rec.pop("_id", None)
-    return rec
+    return public_spatial_entity(rec)
 
 
 async def get_spatial_graph(db, property_id: str) -> dict:
     tenant_id = enums.TENANT_ID
     cur = db[enums.C_SPATIAL].find({"tenant_id": tenant_id, "property_id": property_id}, {"_id": 0})
-    entities = [e async for e in cur]
+    entities = [public_spatial_entity(e) async for e in cur]
     counts = {}
     for e in entities:
         counts[e["entity_type"]] = counts.get(e["entity_type"], 0) + 1

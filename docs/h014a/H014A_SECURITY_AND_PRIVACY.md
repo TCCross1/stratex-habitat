@@ -11,15 +11,26 @@ restricted to the demo homeowner `alex@stratexhabitat.com`) + privileged roles
 ## Tenant isolation
 - `TENANT_ID` is a single server-derived value; `server_tenant_id()` **ignores any client-supplied
   tenant**. It is used to derive the artifact storage reference (Phase 1).
-- Records are always written with the server tenant and the authorized property; cross-tenant
-  scan access → `SCAN_ACCESS_DENIED` (403); cross-tenant relationships → `CROSS_TENANT_RELATIONSHIP`;
-  cross-tenant model access → `MODEL_ACCESS_DENIED`.
+- Records are always written with the server tenant and the authorized property.
+- **H-014A.2:** cross-tenant / unauthorized lookups for scans, artifacts, frames, and models use
+  uniform **404 `NOT_FOUND`** (`Resource not found or not accessible.`) — identical to nonexistent.
+  Same-tenant scan actor denial remains **403 `SCAN_ACCESS_DENIED`** (action authz).
+  Cross-tenant parent relationships on create remain **403 `CROSS_TENANT_RELATIONSHIP`** (validation).
 
 ## Property authorization (`authorize_property`)
 - Reference property `ref-property-h014a`: demo homeowner or privileged roles only, else **403**.
 - Real property: privileged roles allowed; owner match required (`owner_id == user.id`);
-  contractors are denied (no per-job grant model in H-014A); missing property → **404**
-  (non-disclosure, not 403).
+  contractors are denied (no per-job grant model in H-014A); missing **or** unauthorized property
+  → identical **404 NOT_FOUND** (non-disclosure).
+
+## Geometry references (H-014A.2)
+- Stored forms: `artifact:<id>` (same-tenant/property manifest) or `fixture:<safe_id>`
+  (fixtures-enabled environments only). See `geometry_reference.py`.
+- Spatial APIs never return raw object-storage keys through `geometry_reference`.
+
+## Fixture governance (H-014A.2)
+- `HABITAT_ENV=production` **always** disables fixtures, ignoring `HABITAT_ENABLE_FIXTURES`.
+- Enable flag operates only in `development` / `demo` / `test`. Unknown envs fail closed.
 
 ## Truth-promotion guard (`assert_truth_promotion_allowed`) — fail closed
 Habitat-only actors can never self-promote to `RESTRICTED_TRUTH_CLASSES`

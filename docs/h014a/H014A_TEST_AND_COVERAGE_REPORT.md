@@ -1,21 +1,30 @@
 # H-014A — Test & Coverage Report
 
-Test file: `backend/tests/test_h014a_reality.py` (fixtures: `backend/tests/conftest.py`).
+Test files: `backend/tests/test_h014a_reality.py`,
+`backend/tests/test_h014a2_security_closure.py` (fixtures: `backend/tests/conftest.py`).
 Runner: pytest 8 + pytest-xdist (2 workers, `loadscope`) + pytest-cov / coverage 7.15.2.
 Config resolved from env/.env (no hard-coded preview URLs). Tests run against the live backend +
 MongoDB (integration) plus in-process pure-logic unit tests.
 
-## Test result counts (exact)
+## Test result counts (exact) — H-014A.2 closure
 | Suite | Result |
 |---|---|
-| Originally failing (targeted correction) | 2 passed (were 2 failed) |
-| H-014A focused (`test_h014a_reality.py`) | **81 passed** |
-| H-013 security + publication + http-gates | 20 passed |
-| Full backend (`tests/`) | **191 passed, 1 skipped** |
+| H-014A.2 closure (`test_h014a2_security_closure.py`) | **60 passed** |
+| H-014A focused (`test_h014a_reality.py`) | **111 passed** |
+| H-013 security | 9 passed |
+| H-013 publication + http-gates + workflow | 21 passed |
+| Full backend (`tests/`) | **281 passed, 1 skipped** |
 | Failed | **0** |
 
 Skipped (disclosed): `tests/test_design_studio.py:204` — live Gemini render, gated by
-`RUN_RENDER_TEST=1`. Pre-existing and unrelated to H-014A.
+`RUN_RENDER_TEST=1`. Pre-existing and unrelated to H-014A / H-014A.2.
+
+## Prior H-014A counts (historical)
+| Suite | Result |
+|---|---|
+| Originally failing (targeted correction) | 2 passed (were 2 failed) |
+| H-014A focused (pre-hardening) | 81 passed |
+| Full backend (pre-hardening) | 191 passed, 1 skipped |
 
 ## What the H-014A suite covers
 - **Pure unit:** transform validation (dimensions / non-finite `inf`,`-inf`,`nan` / homogeneous row),
@@ -25,8 +34,10 @@ Skipped (disclosed): `tests/test_design_studio.py:204` — live Gemini render, g
   (401/403), truth-promotion over API, scan lifecycle (legal/illegal/terminal/idempotent/stale),
   artifact create + no-binary-in-Mongo + governed token, model accept→immutable→design separation.
 - **Phase 1 ownership:** default ref = `tenant/{tenant}/property/{prop}/reality/{artifact}`;
-  client tenant/property override ignored; cross-tenant scan 403; cross-property source 422;
-  public response exposes only the governed token.
+  client tenant/property override ignored; cross-tenant scan **404 NOT_FOUND** (H-014A.2);
+  cross-property source 422; public response exposes only the governed token.
+- **H-014A.2:** geometry_reference attack matrix; production fixture matrix; non-disclosure
+  route matrix; scan create/transition DB idempotency + unique indexes.
 - **Phase 2 null sweep:** content_type / file_size / label / existing-model collections /
   design proposed_entities & deltas — omitted, explicit null, valid, empty.
 - **Phase 3:** non-finite rejection (unit) + malformed-JSON safe rejection (HTTP 4xx, never 500).
@@ -75,3 +86,9 @@ TOTAL                                864   164     248      48    75%
   repository.
 - Coverage numbers are code coverage from server + unit execution — **no browser check is counted
   as coverage**.
+
+## H-014A.2 measured coverage (reproduced)
+Method unchanged (instrumented uvicorn + in-process unit + combine).  
+Tool: coverage.py **7.15.2** (`--branch`). Reality package **83%** total after closure
+(`geometry_reference` 84%, `authz` 80%, `fixtures` 100%, `artifact_service` 91%,
+`router` 88%, `scan_session_service` 74%).

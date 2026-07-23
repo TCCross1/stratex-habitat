@@ -30,8 +30,11 @@ DESIGN_VERSION_EXPORT, REPORT_RENDER, OTHER_GOVERNED_ARTIFACT.
 - **property** = the **authorized** scan session's `property_id` (never from the client body);
 - **artifact_id** = server-generated (`rf-art-<uuid4>`).
 
-Cross-tenant scan → `SCAN_ACCESS_DENIED` (403). Cross-property source-artifact lineage →
-`CROSS_PROPERTY_ARTIFACT` (422).
+Cross-tenant scan → uniform **404 `NOT_FOUND`** (H-014A.2 non-disclosure). Cross-property
+source-artifact lineage → `CROSS_PROPERTY_ARTIFACT` (422).
+
+Spatial entities that reference artifacts use the governed form `artifact:<artifact_id>`
+(`geometry_reference.py`) — never a raw storage key through spatial APIs.
 
 ## Nullable defaults (Phase 2, explicit `None` checks)
 `storage_object_reference` → governed default; `content_type` → `application/octet-stream`;

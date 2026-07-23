@@ -186,13 +186,16 @@ class TestReferenceRoomDeterminism:
 # ========================= HTTP INTEGRATION TESTS =========================
 class TestReferenceRoomHTTP:
     def test_bootstrap_idempotent(self, homeowner_session, api_url, db):
+        # Idempotency is defined over the fixed fixture entity ids (QC-3), not the
+        # entire REF property_id namespace (which may accumulate unrelated dev writes).
+        fixture_ids = [e["id"] for e in rf.build_reference_records()["entities"]]
         r1 = homeowner_session.post(_api(api_url, "/development/reference-room/bootstrap"), timeout=30)
         assert r1.status_code == 200, r1.text
-        n1 = db[enums.C_SPATIAL].count_documents({"property_id": REF})
+        n1 = db[enums.C_SPATIAL].count_documents({"id": {"$in": fixture_ids}})
         r2 = homeowner_session.post(_api(api_url, "/development/reference-room/bootstrap"), timeout=30)
         assert r2.status_code == 200
-        n2 = db[enums.C_SPATIAL].count_documents({"property_id": REF})
-        assert n1 == n2 == 12, "bootstrap must be idempotent (no duplicates)"
+        n2 = db[enums.C_SPATIAL].count_documents({"id": {"$in": fixture_ids}})
+        assert n1 == n2 == 12, "bootstrap must be idempotent (no duplicate fixture entities)"
 
     def test_reference_room_view(self, homeowner_session, api_url):
         homeowner_session.post(_api(api_url, "/development/reference-room/bootstrap"), timeout=30)
@@ -491,8 +494,9 @@ class TestStorageReferenceOwnership:
                                       "property_id": REF, "current_state": "CREATED"})
         r = homeowner_session.post(_api(api_url, f"/scan-sessions/{sid}/artifacts"),
                                    json={"artifact_type": "POINT_CLOUD", "checksum_sha256": "a" * 64}, timeout=30)
-        assert r.status_code == 403
-        assert r.json()["detail"]["error_code"] == "SCAN_ACCESS_DENIED"
+        # H-014A.2: uniform non-disclosure (no cross-tenant existence oracle).
+        assert r.status_code == 404
+        assert r.json()["detail"]["error_code"] == "NOT_FOUND"
 
     def test_cross_property_source_artifact_fails(self, homeowner_session, api_url, db):
         sid = self._scan(homeowner_session, api_url)

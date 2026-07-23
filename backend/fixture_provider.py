@@ -1,21 +1,26 @@
 """
-STRATEX HABITAT — Deterministic Fixture Provider (H-013)
+STRATEX HABITAT — Deterministic Fixture Provider (H-013 / H-014A.2)
 
 Wraps demo / deterministic fixtures behind an explicit environment gate so they
 can NEVER be served silently as truth in production.
 
 Environment
 -----------
-* HABITAT_ENV            : "development" (default) | "staging" | "production"
-* HABITAT_ENABLE_FIXTURES: "true" / "false" (optional explicit override).
-                           When unset, fixtures are enabled for every
-                           environment EXCEPT production.
+* HABITAT_ENV            : "development" (default) | "demo" | "test" | "production" | …
+* HABITAT_ENABLE_FIXTURES: "true" / "false" (optional override in *allowed*
+                           non-production modes only).
+
+H-014A.2 unconditional production shutdown
+------------------------------------------
+When HABITAT_ENV=production, fixtures are ALWAYS disabled — HABITAT_ENABLE_FIXTURES
+cannot re-enable them. The enable flag operates only in explicitly allowed
+non-production modes: development, demo, test. Unknown environments fail closed.
 
 Contract
 --------
 * When fixtures are DISABLED, `require_fixtures()` / `serve_fixture()` raise
-  `FixtureDisabledError`. The API layer surfaces this as HTTP 409 — a fixture
-  payload is NEVER returned silently.
+  `FixtureDisabledError`. Reality Studio surfaces this as HTTP 403; Steward may
+  surface 409. A fixture payload is NEVER returned silently.
 * When fixtures are ENABLED, `serve_fixture()` tags the payload with a
   `_provenance` block marking it clearly non-authoritative demo data.
 
@@ -26,6 +31,9 @@ from __future__ import annotations
 import os
 import copy
 from typing import Any, Dict
+
+# Explicit allow-list only. production and any unknown env fail closed.
+ALLOWED_FIXTURE_ENVS = frozenset({"development", "demo", "test"})
 
 
 class FixtureDisabledError(Exception):
@@ -44,11 +52,19 @@ def habitat_env() -> str:
 
 
 def fixtures_enabled() -> bool:
-    """Explicit HABITAT_ENABLE_FIXTURES wins; otherwise on unless production."""
+    """Return True only in allowed non-production modes when the enable flag allows.
+
+    production → always False (ignores HABITAT_ENABLE_FIXTURES).
+    unknown / staging / other → always False (fail closed).
+    development|demo|test → HABITAT_ENABLE_FIXTURES override, else default True.
+    """
+    env = habitat_env()
+    if env == "production" or env not in ALLOWED_FIXTURE_ENVS:
+        return False
     explicit = os.environ.get("HABITAT_ENABLE_FIXTURES")
     if explicit is not None and explicit.strip() != "":
         return explicit.strip().lower() in ("1", "true", "yes", "on")
-    return habitat_env() != "production"
+    return True
 
 
 def fixture_provenance(source_label: str) -> dict:

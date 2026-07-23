@@ -22,16 +22,24 @@ QUALITY_REVIEW → **ACCEPTED / REJECTED**. Recoverable failures route through
 - `TERMINAL_STATE` (409) — no transitions out of a terminal state.
 - `STALE_VERSION` (409) — optimistic-concurrency guard via `expected_version` **and** a
   conditional `update_one({id, version})` (double-checked; conflict audited).
-- Actor isolation — non-owner, non-privileged actors get `SCAN_ACCESS_DENIED` (403).
+- Actor isolation — non-owner, non-privileged actors get `SCAN_ACCESS_DENIED` (403)
+  (same-tenant action authz). Cross-tenant scan lookups use uniform **404 NOT_FOUND**
+  (H-014A.2 non-disclosure).
 
-## Idempotency
-- **Create:** `idempotency_key` → returns the existing session if already created (no duplicate).
-- **Transition:** `idempotency_key` recorded in `processed_idempotency_keys`; a duplicate replay
-  returns the current record **without** re-incrementing `version`.
+## Idempotency (H-014A.2 database-backed)
+- **Create:** scoped unique partial index on
+  `tenant_id + property_id + actor_id + create_idempotency_key`. Replay returns the original
+  session; concurrent duplicates collapse via `DuplicateKeyError`. Another property may reuse
+  the same external key safely.
+- **Transition:** unique claim in `reality_scan_transition_idempotency`
+  (`scan_session_id + idempotency_key`) plus `processed_idempotency_keys` on the session.
+  Replay / concurrent duplicate → one state change and **no** duplicate audit event.
 
 ## TTL
 `expires_at` computed from `expires_in_seconds` (explicit) or `HABITAT_SCAN_TTL_HOURS`
 (default 72h) — env-driven, no hard-coded literal in the record path.
+**H-014A.2:** `expires_at` is workflow/state invalidation only (ordinary index). It is **not**
+a Mongo TTL delete index; physical deletion requires an approved retention policy.
 
 ## Endpoints
 - `POST /properties/{property_id}/scan-sessions` (201)

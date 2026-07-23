@@ -1,4 +1,4 @@
-"""Idempotent index creation for Reality Studio collections (Phase 13)."""
+"""Idempotent index creation for Reality Studio collections (Phase 13 / H-014A.2)."""
 import logging
 
 from pymongo import ASCENDING
@@ -8,8 +8,15 @@ from . import enums
 logger = logging.getLogger("habitat.reality.indexes")
 
 
+async def _drop_index_quiet(coll, name: str):
+    try:
+        await coll.drop_index(name)
+    except Exception:
+        pass
+
+
 async def init_reality_indexes(db):
-    """Create indexes for all H-014A collections. Idempotent (safe to re-run)."""
+    """Create indexes for all H-014A / H-014A.2 collections. Idempotent (safe to re-run)."""
     if db is None:
         return
     try:
@@ -36,10 +43,28 @@ async def init_reality_indexes(db):
                                              name="ix_scan_tenant_prop")
         await db[enums.C_SCANS].create_index([("current_state", ASCENDING)], name="ix_scan_state")
         await db[enums.C_SCANS].create_index([("updated_at", ASCENDING)], name="ix_scan_updated")
+        # expires_at is a workflow/state invalidation field — NOT a Mongo TTL delete index.
+        # Physical deletion requires an approved retention policy (H-014A.2 TTL decision).
         await db[enums.C_SCANS].create_index([("expires_at", ASCENDING)], name="ix_scan_expires")
+        # H-014A.2: replace non-unique create idempotency index with scoped unique partial.
+        await _drop_index_quiet(db[enums.C_SCANS], "ix_scan_idempotency")
         await db[enums.C_SCANS].create_index(
-            [("tenant_id", ASCENDING), ("property_id", ASCENDING), ("create_idempotency_key", ASCENDING)],
-            name="ix_scan_idempotency")
+            [("tenant_id", ASCENDING), ("property_id", ASCENDING),
+             ("actor_id", ASCENDING), ("create_idempotency_key", ASCENDING)],
+            unique=True,
+            name="ux_scan_create_idempotency",
+            partialFilterExpression={"create_idempotency_key": {"$type": "string"}},
+        )
+        # H-014A.2: transition idempotency side-collection (unique per session + key).
+        await db[enums.C_SCAN_TRANSITION_IDEMPOTENCY].create_index(
+            [("scan_session_id", ASCENDING), ("idempotency_key", ASCENDING)],
+            unique=True,
+            name="ux_scan_transition_idempotency",
+        )
+        await db[enums.C_SCAN_TRANSITION_IDEMPOTENCY].create_index(
+            [("tenant_id", ASCENDING), ("property_id", ASCENDING)],
+            name="ix_scan_transition_idem_tenant_prop",
+        )
         # Artifact manifests
         await db[enums.C_ARTIFACTS].create_index([("id", ASCENDING)], unique=True, name="ux_artifact_id")
         await db[enums.C_ARTIFACTS].create_index([("tenant_id", ASCENDING), ("property_id", ASCENDING)],

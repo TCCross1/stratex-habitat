@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime, timezone
 
 from . import enums
-from .authz import structured, assert_truth_promotion_allowed
+from .authz import structured, assert_truth_promotion_allowed, not_found_nondisclosure
 from .audit_service import write_event
 
 
@@ -97,10 +97,10 @@ async def transition_existing_model(db, user, *, model_id, to_state, expected_ve
     tenant_id = enums.TENANT_ID
     m = await db[enums.C_EXISTING].find_one({"id": model_id}, {"_id": 0})
     if not m:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail="Existing model version not found")
+        raise not_found_nondisclosure()
     if m.get("tenant_id") != tenant_id:
-        raise structured(403, "MODEL_ACCESS_DENIED", "Cross-tenant model access.")
+        # H-014A.2: uniform non-disclosure (no cross-tenant existence oracle).
+        raise not_found_nondisclosure()
     if m.get("immutable") and m["model_state"] == enums.EM_ACCEPTED and to_state != enums.EM_SUPERSEDED:
         raise structured(409, "MODEL_IMMUTABLE",
                          "Accepted existing-model version is immutable; create a new version for corrections.")

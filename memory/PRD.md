@@ -76,6 +76,15 @@ STRATEX HABITAT™ is a separate homeowner + contractor-facing app that handshak
 - **QC-4:** `REALITY_TRUTH_PROMOTION_REJECTED` emitted once on denial (sanitized, tenant/property/actor bound), best-effort (denial survives audit failure).
 - Validation: H-014A 111 pass, H-013 20 pass, full backend 221 pass/1 unrelated skip, 17 routes, frontend 100% (`iteration_5.json`), coverage 78% (artifact_service 91%, authz 68%). Writes isolated to `reality_*`+`audit_events`. Docs: `docs/h014a/H014A_1_HARDENING_REPORT.md`. Local-only, not production-ready, H-014B not authorized.
 
+## Implemented (2026-07-23) — H-014A.2 security and capture-lifecycle closure
+- Closes four Atlas acceptance conditions from independent QC on baseline `3e4a75c`.
+- **Geometry references:** structured `artifact:<id>` / `fixture:<safe_id>` only; attack matrix rejected; spatial APIs never return raw storage keys via `geometry_reference`.
+- **Fixtures:** `HABITAT_ENV=production` always disables fixtures (ignores `HABITAT_ENABLE_FIXTURES`); allow-list `development|demo|test`; unknown envs fail closed.
+- **Non-disclosure:** Reality lookups for unauthorized vs nonexistent resources return identical `404 NOT_FOUND`.
+- **Scan idempotency:** unique partial create index (`tenant+property+actor+key`); unique transition claim collection; `expires_at` remains non-TTL workflow invalidation.
+- Validation: H-014A.2 60 pass; H-014A 111 pass; H-013 security 9 + publication/gates/workflow 21; full backend **281 pass / 1 unrelated skip**; coverage reality **83%**. Branch `cursor/h014a2-security-closure` only; audit branch unchanged; not production-ready; H-014B not started.
+- Docs: `docs/h014a/H014A_2_SECURITY_AND_LIFECYCLE_CLOSURE.md` + targeted updates to security/scan/artifact/migration/test/completion docs.
+
 ## Backlog
 - **P0 (next):** Wire real STRATEX Core API (replace mock publish/sync) once URL/keys provided; swap Emergent storage → customer AWS S3 with signed URLs + version history.
 - **P1:** Authenticity review queue UI (metadata/URL/screenshot → pending/verified/rejected) influencing external-proof confidence; award/dispute lifecycle on quotes; LLM-generated AI findings; Design Studio + Scenario Planner interactive modeling.
