@@ -5,23 +5,38 @@ import StratexRealityCapture
 import RoomPlan
 import UIKit
 
-/// UIKit bridge presenting Apple's `RoomCaptureView` bound to the package coordinator session.
+/// UIKit bridge presenting Apple's `RoomCaptureView`.
+/// `RoomCaptureView.captureSession` is get-only; the host binds the package
+/// coordinator to that session on first layout.
 struct RoomCaptureViewRepresentable: UIViewRepresentable {
-    let coordinator: RoomCaptureCoordinator
+    @Binding var coordinator: RoomCaptureCoordinator?
+
+    func makeCoordinator() -> Bridge {
+        Bridge()
+    }
 
     func makeUIView(context: Context) -> RoomCaptureView {
         let view = RoomCaptureView(frame: .zero)
-        view.captureSession = coordinator.session
+        // Bind package coordinator to the view-owned session (no second state machine).
+        let bound = RoomCaptureCoordinator(captureSession: view.captureSession)
+        context.coordinator.bound = bound
+        DispatchQueue.main.async {
+            self.coordinator = bound
+        }
         return view
     }
 
     func updateUIView(_ uiView: RoomCaptureView, context: Context) {
-        uiView.captureSession = coordinator.session
+        // Session is owned by the view; coordinator already observes it.
+    }
+
+    final class Bridge {
+        var bound: RoomCaptureCoordinator?
     }
 }
 #else
 struct RoomCaptureViewRepresentable: View {
-    let coordinator: RoomCaptureCoordinator
+    @Binding var coordinator: RoomCaptureCoordinator?
     var body: some View {
         ZStack {
             Color.black.opacity(0.85)
@@ -36,6 +51,11 @@ struct RoomCaptureViewRepresentable: View {
                     .multilineTextAlignment(.center)
             }
             .padding()
+        }
+        .onAppear {
+            if coordinator == nil {
+                coordinator = RoomCaptureCoordinator()
+            }
         }
     }
 }

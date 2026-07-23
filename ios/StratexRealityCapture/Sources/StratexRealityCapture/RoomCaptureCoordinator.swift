@@ -16,7 +16,7 @@ public final class RoomCaptureCoordinator: NSObject, RoomCaptureSessionDelegate 
     public var onStateChange: ((CaptureState) -> Void)?
     public var onProgress: ((QualityReport) -> Void)?
 
-    private let captureSession = RoomCaptureSession()
+    private let captureSession: RoomCaptureSession
     private var lowQualityFrames = 0
     private var totalFrames = 0
     private var limitedTrackingFrames = 0
@@ -25,12 +25,20 @@ public final class RoomCaptureCoordinator: NSObject, RoomCaptureSessionDelegate 
     private var latestStructure: DerivedStructure?
     private var exportedArtifact: Data?
 
-    /// Expose the underlying RoomPlan session so a host can present `RoomCaptureView`.
+    /// Expose the RoomPlan session (may be the host `RoomCaptureView`'s session).
     public var session: RoomCaptureSession { captureSession }
 
     public static var isSupported: Bool { RoomCaptureSession.isSupported }
 
     public override init() {
+        self.captureSession = RoomCaptureSession()
+        super.init()
+        captureSession.delegate = self
+    }
+
+    /// Bind to a host-provided session (e.g. `RoomCaptureView.captureSession`).
+    public init(captureSession: RoomCaptureSession) {
+        self.captureSession = captureSession
         super.init()
         captureSession.delegate = self
     }

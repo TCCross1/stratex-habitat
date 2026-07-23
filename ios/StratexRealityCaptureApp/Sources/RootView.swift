@@ -79,7 +79,12 @@ struct RootView: View {
             VStack(alignment: .leading, spacing: 8) {
                 labeled("Native state", session.captureState.rawValue)
                 labeled("Backend map", session.captureState.backendScanState)
-                RoomCaptureViewRepresentable(coordinator: session.coordinator)
+                RoomCaptureViewRepresentable(coordinator: Binding(
+                    get: { session.captureCoordinator },
+                    set: { newValue in
+                        if let newValue { session.bindCaptureCoordinator(newValue) }
+                    }
+                ))
                     .frame(height: 280)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 HStack {

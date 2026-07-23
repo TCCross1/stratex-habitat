@@ -32,12 +32,28 @@ final class ValidationSessionModel: ObservableObject {
     @Published var evidenceExportPath: String = ""
     @Published var errorMessage: String = ""
 
-    let coordinator = RoomCaptureCoordinator()
+    let fallbackCoordinator = RoomCaptureCoordinator()
+    @Published var captureCoordinator: RoomCaptureCoordinator?
+
+    private var activeCoordinator: RoomCaptureCoordinator {
+        captureCoordinator ?? fallbackCoordinator
+    }
+
     private var api: HabitatAPIClient?
     private var store: SecureLocalStore?
     private var token: String?
 
     init() {
+        wireCoordinator(fallbackCoordinator)
+        refreshCapability()
+    }
+
+    func bindCaptureCoordinator(_ coordinator: RoomCaptureCoordinator) {
+        captureCoordinator = coordinator
+        wireCoordinator(coordinator)
+    }
+
+    private func wireCoordinator(_ coordinator: RoomCaptureCoordinator) {
         coordinator.onStateChange = { [weak self] state in
             Task { @MainActor in
                 self?.captureState = state
@@ -48,7 +64,6 @@ final class ValidationSessionModel: ObservableObject {
                 self?.ingest(report: report)
             }
         }
-        refreshCapability()
     }
 
     func refreshCapability() {
@@ -107,25 +122,25 @@ final class ValidationSessionModel: ObservableObject {
             errorMessage = capability.blockingReasons.joined(separator: " ")
             return
         }
-        coordinator.requestAuthorizationAndStart()
+        activeCoordinator.requestAuthorizationAndStart()
         statusMessage = "Capture started. Follow Guardian coaching. Finish explicitly when ready."
     }
 
-    func pauseCapture() { coordinator.pause() }
-    func resumeCapture() { coordinator.resume() }
+    func pauseCapture() { activeCoordinator.pause() }
+    func resumeCapture() { activeCoordinator.resume() }
     func cancelCapture() {
-        coordinator.cancel()
+        activeCoordinator.cancel()
         evidence?.observedDefects.append("Capture cancelled by operator.")
         statusMessage = "Capture cancelled."
     }
 
     func finishCapture() {
-        coordinator.finish()
+        activeCoordinator.finish()
         statusMessage = "Finalizing capture — preparing governed upload."
     }
 
     func handleAppInterruption(reason: String) {
-        coordinator.handleInterruption()
+        activeCoordinator.handleInterruption()
         evidence?.interruptionEvents.append(reason)
         statusMessage = "Interrupted (\(reason)). Capture paused if it was active."
     }
@@ -153,15 +168,15 @@ final class ValidationSessionModel: ObservableObject {
             errorMessage = "Pseudonymous property ID required."
             return
         }
-        guard let report = coordinator.currentReport() ?? latestReport else {
+        guard let report = activeCoordinator.currentReport() ?? latestReport else {
             errorMessage = "No quality report available."
             return
         }
-        guard let structure = coordinator.currentStructure() else {
+        guard let structure = activeCoordinator.currentStructure() else {
             errorMessage = "No derived structure available."
             return
         }
-        guard let artifact = coordinator.currentArtifactData(), !artifact.isEmpty else {
+        guard let artifact = activeCoordinator.currentArtifactData(), !artifact.isEmpty else {
             errorMessage = "No capture artifact available to upload."
             return
         }
