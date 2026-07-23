@@ -21,7 +21,7 @@ public final class SecureLocalStore {
         root = base.appendingPathComponent(subdirectory, isDirectory: true)
         if !fm.fileExists(atPath: root.path) {
             try fm.createDirectory(at: root, withIntermediateDirectories: true,
-                                   attributes: [.protectionKey: FileProtectionType.complete])
+                                   attributes: Self.directoryProtectionAttributes)
         }
         try excludeFromBackup(root)
     }
@@ -29,7 +29,7 @@ public final class SecureLocalStore {
     public func stagingURL(scanSessionId: String, filename: String) -> URL {
         let dir = root.appendingPathComponent(scanSessionId, isDirectory: true)
         try? fm.createDirectory(at: dir, withIntermediateDirectories: true,
-                                attributes: [.protectionKey: FileProtectionType.complete])
+                                attributes: Self.directoryProtectionAttributes)
         return dir.appendingPathComponent(filename)
     }
 
@@ -37,10 +37,28 @@ public final class SecureLocalStore {
     public func write(_ data: Data, scanSessionId: String, filename: String) throws -> URL {
         let url = stagingURL(scanSessionId: scanSessionId, filename: filename)
         do {
-            try data.write(to: url, options: [.completeFileProtection, .atomic])
+            try data.write(to: url, options: Self.writeOptions)
             try excludeFromBackup(url)
             return url
         } catch { throw StoreError.ioError("\(error)") }
+    }
+
+    /// iOS: complete file protection. macOS CI / review hosts: atomic write only
+    /// (FileProtectionType is an iOS data-protection concept).
+    private static var directoryProtectionAttributes: [FileAttributeKey: Any]? {
+        #if os(iOS)
+        return [.protectionKey: FileProtectionType.complete]
+        #else
+        return nil
+        #endif
+    }
+
+    private static var writeOptions: Data.WritingOptions {
+        #if os(iOS)
+        return [.completeFileProtection, .atomic]
+        #else
+        return [.atomic]
+        #endif
     }
 
     /// Delete all locally staged files for a scan session (call after upload completes).

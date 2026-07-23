@@ -7,12 +7,14 @@ on:
       - "backend/reality/**"
       - "backend/tests/test_h014a_reality.py"
       - "backend/tests/test_h014b_capture.py"
+      - "backend/tests/test_h014b1_storage_boundary.py"
       - ".github/workflows/backend-reality.yml"
   pull_request:
     paths:
       - "backend/reality/**"
       - "backend/tests/test_h014a_reality.py"
       - "backend/tests/test_h014b_capture.py"
+      - "backend/tests/test_h014b1_storage_boundary.py"
   workflow_dispatch: {}
 
 jobs:
@@ -35,7 +37,12 @@ jobs:
         working-directory: backend
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          # emergentintegrations is a private/non-PyPI package used only by the
+          # optional live Gemini render path. Deterministic unit CI must not
+          # depend on it — install everything else from requirements.txt.
+          grep -vE '^[[:space:]]*emergentintegrations([[:space:]]|=|$)' requirements.txt \
+            > /tmp/requirements-ci.txt
+          pip install -r /tmp/requirements-ci.txt
       - name: Byte-compile the reality package (syntax gate)
         working-directory: backend
         run: python -m compileall -q reality
@@ -45,6 +52,9 @@ jobs:
           python -m pytest -q \
             tests/test_h014b_capture.py::TestGuardianDeterminism \
             tests/test_h014b_capture.py::TestNativeStateMapping \
+            tests/test_h014b1_storage_boundary.py::TestGuardianTruthBoundaryUnit \
+            tests/test_h014b1_storage_boundary.py::TestObjectStoreProviderGate \
+            tests/test_h014b1_storage_boundary.py::TestCleanupUtilityGate \
             tests/test_h014a_reality.py::TestCoordinateTransformValidation \
             tests/test_h014a_reality.py::TestSpatialRelationshipValidation \
             tests/test_h014a_reality.py::TestTruthPromotionGuard \

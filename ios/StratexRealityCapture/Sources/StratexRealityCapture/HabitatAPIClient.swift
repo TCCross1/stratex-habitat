@@ -145,7 +145,13 @@ public final class HabitatAPIClient {
     private func postRaw(_ path: String, json: [String: Any] = [:], rawBody: Data? = nil) async throws -> Data {
         var req = try request(path, method: "POST")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = rawBody ?? (json.isEmpty ? "{}".data(using: .utf8) : try JSONSerialization.data(withJSONObject: json))
+        if let rawBody {
+            req.httpBody = rawBody
+        } else if json.isEmpty {
+            req.httpBody = Data("{}".utf8)
+        } else {
+            req.httpBody = try JSONSerialization.data(withJSONObject: json)
+        }
         let (data, resp) = try await session.data(for: req)
         try Self.check(resp, data)
         return data

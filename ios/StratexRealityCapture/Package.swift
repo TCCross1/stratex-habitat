@@ -10,7 +10,11 @@ import PackageDescription
 
 let package = Package(
     name: "StratexRealityCapture",
-    platforms: [.iOS(.v16)],   // RoomPlan requires iOS 16+
+    // iOS 16+ is the product target (RoomPlan). macOS 13+ is declared so the
+    // portable (non-RoomPlan) sources + Guardian unit tests can compile under
+    // `swift build`/`swift test` on GitHub Actions macOS runners. RoomPlan/ARKit
+    // remain excluded via `#if canImport` on non-iOS hosts.
+    platforms: [.iOS(.v16), .macOS(.v13)],
     products: [
         .library(name: "StratexRealityCapture", targets: ["StratexRealityCapture"])
     ],
