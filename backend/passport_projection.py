@@ -190,10 +190,15 @@ def _seed_context(mode: str, tenant_id: str, property_id: str, correlation_id: s
     return {
         "_projection": build_envelope(mode, tenant_id, property_id, correlation_id, seed_identifier),
         "property_identity": {
-            "id": property_id, "name": "Villa Horizon", "address": "Austin, TX",
-            **_meta("proj-identity", "1.2.0", "PUBLISHED", "Austin County Deeds Registry",
-                    "DEED-512-421A", "VERIFIED", "HIGH", "2019-01-01T00:00:00Z",
-                    ["DEED-512-421A"], "property_ownership"),
+            "id": property_id, "name": "Central Kentucky Demonstration Home",
+            "address": "Lexington, Kentucky",
+            "property_type": "detached_single_family",
+            "is_demo_fixture": True,
+            "data_origin": "demo",
+            "truth_status": "sample_only",
+            **_meta("proj-identity", "1.2.0", "PUBLISHED", "Central Kentucky demonstration seed",
+                    "DEMO-SEED-IDENTITY", "SAMPLE_ONLY", "DEMO", "2019-01-01T00:00:00Z",
+                    ["DEMO-SEED-IDENTITY"], "property_ownership"),
         },
         "published_explanation": {
             "system": "Roofing", "material": "Asphalt Shingle (Architectural Shingles)",
@@ -211,8 +216,8 @@ def _seed_context(mode: str, tenant_id: str, property_id: str, correlation_id: s
         },
         "timeline_entries": [
             {"id": "t_01", "date": "2010-06-15", "event": "Roof Installed",
-             **_meta("proj-tl-01", "1.0", "PUBLISHED", "Austin Appraisal Records", "APP-2010-R",
-                     "ESTIMATED", "MEDIUM", "2010-06-15T00:00:00Z", ["APP-2010-R"], "property_timeline_read")},
+             **_meta("proj-tl-01", "1.0", "PUBLISHED", "Central Kentucky demonstration appraisal sample", "DEMO-APP-2010-R",
+                     "ESTIMATED", "MEDIUM", "2010-06-15T00:00:00Z", ["DEMO-APP-2010-R"], "property_timeline_read")},
             {"id": "t_02", "date": "2024-10-05", "event": "Aerial Drone Thermal Scan",
              **_meta("proj-tl-02", "1.1", "PUBLISHED", "STRATEX Core Aerial Audit", "SCAN-DRONE-2024-X",
                      "VERIFIED", "HIGH", "2024-10-05T14:30:00Z", ["SCAN-DRONE-2024-X"], "property_timeline_read")},

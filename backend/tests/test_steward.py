@@ -115,7 +115,7 @@ class TestHomeSteward:
         assert r.status_code == 200
         data = r.json()
         assert data["pricing_date"] == "July 2026"
-        assert "Austin" in data["geographic_basis"]
+        assert "Lexington" in data["geographic_basis"]
         assert "scenarios" in data
         assert "breakdown" in data
         assert "cost_delta_explanation" in data

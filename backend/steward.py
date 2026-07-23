@@ -65,7 +65,7 @@ ROOF_FIXTURE_STORE = {
     },
     "truth_states": [
         {"item": "Roof Material", "state": "VERIFIED", "source": "On-Site Photo Audit", "confidence": "HIGH"},
-        {"item": "Roof Installation Year", "state": "ESTIMATED", "source": "Austin Appraisal Roll Records", "confidence": "MEDIUM"},
+        {"item": "Roof Installation Year", "state": "ESTIMATED", "source": "Central Kentucky demonstration appraisal sample", "confidence": "MEDIUM"},
         {"item": "Roof Condition Findings", "state": "VERIFIED", "source": "STRATEX Aerial drone thermal scan", "confidence": "HIGH"},
         {"item": "Deck Structural Health", "state": "UNKNOWN", "source": "None - Underlayment concealed", "confidence": "LOW"},
         {"item": "Shingle Warranty Status", "state": "HOMEOWNER-REPORTED", "source": "Homeowner conversation assertion", "confidence": "LOW"}
@@ -363,9 +363,9 @@ async def calculate_estimate(body: EstimateReq, user: dict = Depends(get_steward
     
     estimate_payload = {
         "pricing_date": "July 2026",
-        "geographic_basis": "Austin, TX (Local multiplier: 1.08x)",
-        "quantity_sources": "STRATEX Digital Twin 3D Mesh Audit (3,200 sq ft)",
-        "confidence_tier": "HIGH for area quantities; LOW for sub-surface deck condition",
+        "geographic_basis": "Lexington, KY (Local multiplier: 1.08x)",
+        "quantity_sources": "STRATEX Digital Twin planning quantities (demo/sample only)",
+        "confidence_tier": "DEMO / SAMPLE ONLY — not Passport-approved quantities",
         "scenarios": {
             "low": spec["local_low"],
             "expected": total_expected,
@@ -376,7 +376,7 @@ async def calculate_estimate(body: EstimateReq, user: dict = Depends(get_steward
         "assumptions": [
             "Existing roof deck sheathing is dry and reusable without complete replacement.",
             "Standard roof pitch of 6:12 allows standard safety setup.",
-            "Austin municipal permits do not require unique historic-zone review."
+            "Lexington municipal permits do not require unique historic-zone review."
         ],
         "exclusions": [
             "Structural timber rafters replacement in case of chronic decay.",
@@ -512,15 +512,24 @@ async def get_contractor_package_preview(
     # NEVER returned directly. H-013 #9 redaction strips everything a contractor
     # is not entitled to see, on the backend, before any response is emitted.
     internal_package = {
-        "summary": "Villa Horizon Roof Replacement Project Package",
+        "summary": "Central Kentucky Demonstration Home Roof Replacement Project Package",
         "homeowner_approved_summary": "Explore replacement of the 2010 Asphalt Shingle roof with Architectural Shingles, addressing minor deflection.",
         "property_context": {
-            "name": "Villa Horizon", "location": "Austin, TX", "year_built": 2019
+            "name": "Central Kentucky Demonstration Home",
+            "location": "Lexington, Kentucky",
+            "year_built": 2019,
+            "property_type": "detached_single_family",
+            "is_demo_fixture": True,
+            "truth_status": "sample_only",
+            "data_origin": "demo",
         },
         "digital_twin_views": ["North Slope Deflection Spot View", "South Slope Solar Array Layout"],
         "proposed_materials": "GAF Timberline HDZ (Architectural Shingles)",
         "quantity_takeoff": {
-            "area_sqft": 3200, "pitch": "6:12", "ridges_hips_lft": 180, "valleys_lft": 85
+            "area_sqft": 3200, "pitch": "6:12", "ridges_hips_lft": 180, "valleys_lft": 85,
+            "truth_status": "sample_only",
+            "data_origin": "demo",
+            "note": "Demonstration planning quantities only — not measured Passport geometry.",
         },
         "planning_estimate": gov["range_display"],
         "planning_estimate_provenance": gov["provenance"],
@@ -545,9 +554,9 @@ async def get_contractor_package_preview(
             "first_name": _first,
             "last_name": _last,
             "email": user.get("email"),
-            "phone": "(512) 555-0101",
+            "phone": "(859) 555-0101",
         },
-        "exact_address": "1420 Vista Ridge Dr, Austin, TX 78733",
+        "exact_address": "Demonstration address redacted — Lexington, Kentucky",
         "owner_id": user.get("id"),
         "internal_confidence": "MEDIUM",
         "correlation_id": str(uuid.uuid4()),
@@ -652,7 +661,7 @@ async def get_steward_memory(user: dict = Depends(get_steward_user), db = Depend
         "homeowner_memory": {
             "communication_preference": "Email & App Dashboard (No phone calls)",
             "explanation_depth_preference": "High-fidelity Progressive Trace",
-            "project_priorities": ["Structural durability", "Resilience against Austin storms"]
+            "project_priorities": ["Structural durability", "Resilience against Central Kentucky weather"]
         },
         "property_memory_reference": {
             "approved_passport_projections": f"/api/steward/context",

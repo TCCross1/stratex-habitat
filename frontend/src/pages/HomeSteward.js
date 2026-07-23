@@ -581,7 +581,7 @@ export default function HomeSteward() {
               {/* Estimate Cost Details */}
               <div className="p-4 rounded-md bg-[#111113] border border-[#27272a] space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-semibold text-white">Austin local range:</span>
+                  <span className="text-xs font-semibold text-white">Lexington local range:</span>
                   <span className="font-mono text-sm text-teal font-bold" style={{ color: "#14f1d9" }}>
                     {money(estimateData.scenarios.low)} - {money(estimateData.scenarios.high)}
                   </span>
@@ -601,7 +601,7 @@ export default function HomeSteward() {
                 </div>
 
                 <div className="pt-2 border-t border-[#27272a] text-[10px] text-[#71717a] flex justify-between">
-                  <span>Geographic multiplier: Austin, TX</span>
+                  <span>Geographic multiplier: Lexington, KY</span>
                   <span>Pricing date: {estimateData.pricing_date}</span>
                 </div>
               </div>

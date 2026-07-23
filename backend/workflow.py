@@ -537,7 +537,7 @@ def _build_opportunity(wf: dict, user: dict):
         "owner_id": user["id"],
         "owner_name": "Alex M." if redact else user.get("name"),
         "property_id": wf["property_id"],
-        "property_name": "Villa Horizon",
+        "property_name": "Central Kentucky Demonstration Home",
         "title": "Published: Roof Replacement",
         "category": "Roofing",
         "project_type": "renovation",

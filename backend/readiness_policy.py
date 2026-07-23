@@ -39,7 +39,7 @@ ROOF_READINESS_ITEMS = [
      "classification": INFORMATIONAL_GAP, "default_state": "COMPLETE", "score": 10,
      "description": "Standard boundaries and location confirmed.",
      "why_it_matters": "Baseline property identity for scoping.",
-     "who_can_verify": "Austin County GIS Records", "site_verification_required": False},
+     "who_can_verify": "Central Kentucky demonstration GIS sample", "site_verification_required": False},
 
     {"item_id": "RDY-ROOF-GEOMETRY", "name": "Roof Geometry takeoff",
      "classification": INFORMATIONAL_GAP, "default_state": "COMPLETE", "score": 10,
@@ -62,7 +62,7 @@ ROOF_READINESS_ITEMS = [
 
     {"item_id": "RDY-PERMIT-HOA", "name": "Permit & HOA considerations",
      "classification": INFORMATIONAL_GAP, "default_state": "COMPLETE", "score": 10,
-     "description": "Standard Austin zoning and Villa Horizon HOA materials confirmed.",
+     "description": "Standard Lexington zoning and Central Kentucky demonstration HOA materials (sample-only).",
      "why_it_matters": "Confirms no unusual approval path.",
      "who_can_verify": "Zoning Database Sync", "site_verification_required": False},
 ]

@@ -97,8 +97,14 @@ class TestFixtureGate:
 # ---------------------------------------------------------------------------
 def _internal_package():
     return {
-        "summary": "Villa Horizon Roof Replacement",
-        "property_context": {"name": "Villa Horizon", "location": "Austin, TX", "year_built": 2019},
+        "summary": "Central Kentucky Demonstration Home Roof Replacement",
+        "property_context": {
+            "name": "Central Kentucky Demonstration Home",
+            "location": "Lexington, Kentucky",
+            "year_built": 2019,
+            "is_demo_fixture": True,
+            "truth_status": "sample_only",
+        },
         "quantity_takeoff": {"area_sqft": 3200},
         "planning_estimate": "$9,800 - $13,400",
         "assumptions": ["Deck limited to North Slope anomaly."],
