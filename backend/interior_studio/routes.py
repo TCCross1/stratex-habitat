@@ -14,6 +14,7 @@ from .remodel_ops import (
     open_concept_proposal,
     kitchen_proposal,
     bath_proposal,
+    room_refresh_proposal,
     ProjectKind,
 )
 from .estimator import estimate_proposal, estimate_selections
@@ -127,3 +128,29 @@ def project_bath(body: BathBody):
 @router.get("/labor-rate")
 def labor_rate(region: str = "US-KY"):
     return {"region": region, "rate_per_hr": region_labor_rate(region)}
+
+
+class RoomRefreshBody(BaseModel):
+    floor_sqft: float = 200
+    wall_sqft: float = 450
+    perimeter_lf: float = 60
+    floor_item: str = "lvp_prem"
+    paint: bool = True
+    baseboard: bool = True
+    doors: int = 1
+    region: str = "US-KY"
+
+
+@router.post("/projects/room-refresh")
+def project_room_refresh(body: RoomRefreshBody):
+    prop = room_refresh_proposal(
+        floor_sqft=body.floor_sqft,
+        wall_sqft=body.wall_sqft,
+        perimeter_lf=body.perimeter_lf,
+        floor_item=body.floor_item,
+        paint=body.paint,
+        baseboard=body.baseboard,
+        doors=body.doors,
+    )
+    return estimate_proposal(prop, region=body.region)
+
