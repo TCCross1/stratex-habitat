@@ -54,3 +54,22 @@ def get_opening(opening_id: str):
         if o["id"] == opening_id:
             return o
     return items[0] if items else {"error": "not_found"}
+
+
+@router.get("/projection/contract")
+def projection_contract():
+    """Field-ready Passport→Habitat contract schema for Core publishers."""
+    from habitat_ui.projection_contract import (
+        empty_field_ready_projection,
+        validate_projection,
+        CONTRACT_ID,
+        CONTRACT_VERSION,
+    )
+    sample = empty_field_ready_projection("example")
+    return {
+        "contract_id": CONTRACT_ID,
+        "contract_version": CONTRACT_VERSION,
+        "sample": sample,
+        "validation_example": validate_projection(sample),
+    }
+
