@@ -37,7 +37,7 @@ export default function SectionNav({ onNavigate }) {
       data-testid="section-nav">
       {/* property card */}
       {property && user?.role !== "contractor" && (
-        <button type="button" onClick={() => go("/twin")} data-testid="property-card"
+        <button type="button" onClick={() => go("/dashboard")} data-testid="property-card"
           className="m-3 p-2.5 rounded-md border border-[#27272a] bg-[#111113] flex gap-3 items-center text-left hover:border-[#3f3f46] transition-colors">
           <img
             src={thumbSrc}
