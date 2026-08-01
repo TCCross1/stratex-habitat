@@ -93,8 +93,14 @@ export default function InteriorStudio() {
       } else if (project === "open_concept") {
         url = "/api/habitat/interior-studio/projects/open-concept";
         body = { ...body, wall_length_lf: wallLf, is_bearing: bearing };
+      } else if (project === "room_refresh") {
+        url = "/api/habitat/interior-studio/projects/room-refresh";
+        body = { ...body, floor_item: floorItem };
+      } else if (project === "whole_floor_finishes") {
+        url = "/api/habitat/interior-studio/projects/room-refresh";
+        body = { ...body, floor_sqft: 600, wall_sqft: 1200, perimeter_lf: 180, floor_item: floorItem };
       } else {
-        toast.message("Room refresh uses the same estimate engine — pick Kitchen or Bath for full presets.");
+        toast.message("Select a project type to estimate.");
         setBusy(false);
         return;
       }
