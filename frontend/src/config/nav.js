@@ -1,11 +1,17 @@
 import {
   Box, BarChart3, Ruler, FileText, DollarSign, Folder, Users, ShieldCheck,
   Settings, HelpCircle, Activity, Search, Wrench, Lightbulb, PenTool, GitBranch,
-  Store, FileBarChart, Star, ClipboardList, LayoutGrid, Sparkles,
+  Store, FileBarChart, Star, ClipboardList, LayoutGrid, Sparkles, Home,
 } from "lucide-react";
 
 // Left section navigation (homeowner — mirrors reference image)
 export const HOMEOWNER_NAV = [
+  {
+    group: "Home",
+    items: [
+      { to: "/dashboard", label: "Dashboard", icon: Home },
+    ],
+  },
   {
     group: "Twin",
     items: [
@@ -74,6 +80,7 @@ export const CONTRACTOR_NAV = [
 ];
 
 export const RAIL = [
+  { icon: Home, label: "Home", to: "/dashboard" },
   { icon: Box, label: "Twin", to: "/twin" },
   { icon: BarChart3, label: "Insights", to: "/insights" },
   { icon: Ruler, label: "Design", to: "/design-studio" },
