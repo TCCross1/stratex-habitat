@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from .exterior_studio_catalog import LABOR_RATE_BANDS, get_sku
-from .exterior_studio_models import (
+from .catalog import LABOR_RATE_BANDS, get_sku
+from .models import (
     CostLine,
     CostSummary,
     DesignProposal,
