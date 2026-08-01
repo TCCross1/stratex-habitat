@@ -1,0 +1,23 @@
+/* Stratex Habitat — design tokens (mockup-locked) */
+:root {
+  --sx-bg: #0b0e14;
+  --sx-bg-elevated: #12181f;
+  --sx-bg-card: #1a222d;
+  --sx-border: rgba(0, 229, 255, 0.18);
+  --sx-border-strong: rgba(0, 229, 255, 0.45);
+  --sx-cyan: #00e5ff;
+  --sx-cyan-dim: #2ee6a6;
+  --sx-orange: #ff6a00;
+  --sx-orange-soft: #ff8a3d;
+  --sx-green: #22c55e;
+  --sx-amber: #f59e0b;
+  --sx-red: #ef4444;
+  --sx-text: #f3f6fa;
+  --sx-text-muted: #8b9bb0;
+  --sx-text-label: #5eead4;
+  --sx-glow: 0 0 24px rgba(0, 229, 255, 0.25);
+  --sx-radius: 12px;
+  --sx-radius-sm: 8px;
+  --sx-font: "Inter", "Segoe UI", system-ui, sans-serif;
+  --sx-sidebar-width: 240px;
+}
