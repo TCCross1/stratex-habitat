@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Stratex Habitat — Field Preview</title>
+<link rel="stylesheet" href="../styles/design_tokens.css"/>
+<link rel="stylesheet" href="../styles/HabitatDashboard.css"/>
+<style>
+  body { margin:0; background: var(--sx-bg); color: var(--sx-text); font-family: var(--sx-font); }
+  .grid { display:grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px; }
+  @media (max-width:900px){ .grid { grid-template-columns: 1fr; } }
+  .twin-box { min-height: 280px; display:flex; align-items:center; justify-content:center; border:1px dashed var(--sx-border-strong); border-radius: var(--sx-radius); color: var(--sx-text-muted); }
+  .layers { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+  .layers button { background:#12181f; color:var(--sx-text); border:1px solid var(--sx-border); border-radius:999px; padding:8px 14px; cursor:pointer; }
+  .layers button.active { border-color: var(--sx-cyan); color: var(--sx-cyan); box-shadow: var(--sx-glow); }
+  .openings-list { list-style:none; padding:0; margin:0; }
+  .openings-list li { padding:10px 0; border-bottom:1px solid var(--sx-border); cursor:pointer; }
+  .openings-list li:hover { color: var(--sx-cyan); }
+</style>
+</head>
+<body>
+  <div class="habitat-topbar">
+    <div class="habitat-logo-wordmark">STRATE<span class="x">X</span><span class="habitat">HABITAT™</span></div>
+    <span style="color:var(--sx-text-muted);font-size:12px;letter-spacing:.15em">RESIDENTIAL PROPERTY INTELLIGENCE PLATFORM</span>
+  </div>
+  <div class="grid">
+    <section class="habitat-card">
+      <div style="color:var(--sx-text-label);font-size:11px">PROPERTY PASSPORT</div>
+      <h1 id="addr">Loading…</h1>
+      <p id="city" style="color:var(--sx-text-muted)"></p>
+      <div class="habitat-score" id="score">—</div>
+      <div id="rank" style="color:var(--sx-text-muted)"></div>
+      <div class="twin-box" id="twin">3D Twin viewport · AWE / Openings layers</div>
+      <div class="layers" id="layers"></div>
+    </section>
+    <section class="habitat-card">
+      <h2>Home Health</h2>
+      <div class="habitat-score" id="health">—</div>
+      <ul id="systems"></ul>
+      <h2>Predictive Maintenance</h2>
+      <p id="maint"></p>
+      <h2>AWE™</h2>
+      <div class="habitat-score" id="awe">—</div>
+      <h2>Exterior Openings</h2>
+      <ul class="openings-list" id="openings"></ul>
+      <div id="opening-detail" class="opening-detail"></div>
+    </section>
+  </div>
+  <footer class="habitat-footer-tagline" id="tagline"></footer>
+<script>
+const API = "/api/habitat";
+async function load() {
+  const [dash, opens, layers] = await Promise.all([
+    fetch(API + "/dashboard/projection").then(r => r.json()).catch(() => null),
+    fetch(API + "/openings").then(r => r.json()).catch(() => ({openings:[]})),
+    fetch(API + "/twin/layers").then(r => r.json()).catch(() => ({layers:[]})),
+  ]);
+  if (dash) {
+    document.getElementById("addr").textContent = dash.property.address_line;
+    document.getElementById("city").textContent = dash.property.city_state_zip;
+    document.getElementById("score").textContent = dash.property.certified_score;
+    document.getElementById("rank").textContent = dash.property.rank_label;
+    document.getElementById("health").textContent = dash.home_health.overall + "%";
+    document.getElementById("systems").innerHTML = Object.entries(dash.home_health.systems).map(([k,v]) => `<li>${k}: ${v}%</li>`).join("");
+    document.getElementById("maint").textContent = `$${dash.predictive_maintenance.next_12_months_usd.toLocaleString()} · ${dash.predictive_maintenance.recommended_actions} actions`;
+    document.getElementById("awe").textContent = dash.awe.awe_index + " " + dash.awe.label;
+    document.getElementById("tagline").textContent = dash.tagline;
+  }
+  const layerEl = document.getElementById("layers");
+  (layers.layers || []).forEach(l => {
+    const b = document.createElement("button");
+    b.textContent = l.label;
+    if (l.default) b.classList.add("active");
+    b.onclick = () => b.classList.toggle("active");
+    layerEl.appendChild(b);
+  });
+  const list = document.getElementById("openings");
+  const detail = document.getElementById("opening-detail");
+  (opens.openings || []).forEach(o => {
+    const li = document.createElement("li");
+    li.textContent = `${o.label} · ${o.unit_display} (RO ${o.rough_opening_display})`;
+    li.onclick = () => {
+      detail.innerHTML = `<h3>${o.label}</h3>
+        <dl>
+          <dt>Type</dt><dd>${o.kind}</dd>
+          <dt>Elevation</dt><dd>${o.elevation}</dd>
+          <dt>Unit size</dt><dd>${o.unit_display}</dd>
+          <dt>Rough opening</dt><dd>${o.rough_opening_display}</dd>
+          <dt>Material</dt><dd>${o.material}</dd>
+          <dt>Condition</dt><dd>${o.condition}</dd>
+          <dt>Truth</dt><dd>${o.truth}</dd>
+        </dl>
+        <p style="color:var(--sx-text-muted);font-size:12px">${o.disclaimer}</p>`;
+    };
+    list.appendChild(li);
+  });
+}
+load();
+</script>
+</body>
+</html>
