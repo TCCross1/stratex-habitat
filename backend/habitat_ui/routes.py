@@ -1,11 +1,14 @@
-"""API: exterior openings + AWE twin layers for Habitat dashboard (mockup-locked)."""
+"""API: Habitat dashboard projection, openings, AWE twin layers (mockup-locked)."""
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from typing import Optional
+
+from fastapi import APIRouter, Query
 
 from habitat_ui.openings import demo_openings_for_property
 from habitat_ui.awe_twin import (
+    build_dashboard_projection,
     habitat_dashboard_projection_stub,
     twin_layer_set,
     awe_findings_on_twin,
@@ -15,9 +18,18 @@ router = APIRouter(prefix="/habitat", tags=["habitat-ui"])
 
 
 @router.get("/dashboard/projection")
-def dashboard_projection():
-    """Passport-shaped projection driving the mockup-locked Habitat dashboard."""
-    return habitat_dashboard_projection_stub()
+def dashboard_projection(
+    tenant_id: str = Query("demo"),
+    property_id: str = Query("demo-property"),
+    stub_only: bool = Query(False),
+):
+    """
+    Passport-shaped projection for Habitat dashboard.
+    Tries Passport adapter merge; falls back to mockup demo stub.
+    """
+    if stub_only:
+        return habitat_dashboard_projection_stub()
+    return build_dashboard_projection(tenant_id, property_id)
 
 
 @router.get("/twin/layers")
@@ -32,7 +44,6 @@ def awe_hotspots():
 
 @router.get("/openings")
 def list_openings():
-    """Windows, doors, rough openings for twin hotspots + detail panel."""
     return {"openings": demo_openings_for_property()}
 
 
