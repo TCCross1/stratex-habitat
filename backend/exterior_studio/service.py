@@ -8,10 +8,10 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from .exterior_studio_boundary import evaluate_placement
-from .exterior_studio_catalog import SIDING_TEXTURES, ROOF_SYSTEMS, list_catalog
-from .exterior_studio_estimator import estimate_proposal
-from .exterior_studio_models import (
+from .boundary import evaluate_placement
+from .catalog import SIDING_TEXTURES, ROOF_SYSTEMS, list_catalog
+from .estimator import estimate_proposal
+from .models import (
     DesignProposal,
     MaterialSelection,
     Placement,
