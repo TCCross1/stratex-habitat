@@ -105,6 +105,13 @@ export default function HabitatHome() {
               >
                 Quick Scan
               </button>
+              <button
+                type="button"
+                onClick={() => navigate("/exterior-studio")}
+                className="px-4 py-2 rounded-lg border border-[rgba(0,229,255,0.35)] text-[#00e5ff] text-sm"
+              >
+                Exterior Studio
+              </button>
             </div>
           </div>
           <div className="flex-1 min-h-[220px] rounded-lg border border-[rgba(0,229,255,0.35)] bg-[#12181f] flex flex-col items-center justify-center gap-3 overflow-hidden relative">
