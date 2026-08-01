@@ -1,5 +1,7 @@
 """
 AWE (Air · Water · Energy) overlays and report cards bound to the Habitat twin.
+Dashboard projection merges Passport adapter output when available, else demo stub
+matching approved mockups (Appalachian Way field-test shape).
 """
 
 from __future__ import annotations
@@ -17,18 +19,13 @@ def awe_index_card(
     return {
         "awe_index": score,
         "label": label,
-        "components": {
-            "air": air,
-            "water": water,
-            "energy": energy,
-        },
+        "components": {"air": air, "water": water, "energy": energy},
         "brand": "AWE™",
         "truth": "ESTIMATED",
     }
 
 
 def twin_layer_set() -> List[Dict[str, Any]]:
-    """Landing-page twin layers matching product rules."""
     return [
         {"id": "finish", "label": "Finish", "default": True, "studio_default": True},
         {"id": "thermal", "label": "Thermal", "default": False, "studio_default": False},
@@ -41,7 +38,6 @@ def twin_layer_set() -> List[Dict[str, Any]]:
 
 
 def awe_findings_on_twin() -> List[Dict[str, Any]]:
-    """Hotspots that appear on the 3D twin when AWE layer is active."""
     return [
         {
             "id": "awe-attic-heat",
@@ -70,9 +66,13 @@ def awe_findings_on_twin() -> List[Dict[str, Any]]:
     ]
 
 
-def habitat_dashboard_projection_stub(address: str = "1234 Appalachian Way") -> Dict[str, Any]:
-    """Shape of Passport → Habitat dashboard projection for UI binding."""
+def habitat_dashboard_projection_stub(
+    address: str = "1234 Appalachian Way",
+) -> Dict[str, Any]:
+    """Mockup-locked demo projection for field UI (authoritative: false)."""
     return {
+        "authoritative": False,
+        "mode": "demo",
         "property": {
             "address_line": address,
             "city_state_zip": "London, KY 40741",
@@ -96,8 +96,101 @@ def habitat_dashboard_projection_stub(address: str = "1234 Appalachian Way") -> 
             "next_12_months_usd": 2840,
             "recommended_actions": 5,
         },
+        "financial": {
+            "current_home_value": 285400,
+            "equity": 128750,
+            "investment_in_home": 96230,
+            "projected_value_5yr": 342700,
+        },
         "awe": awe_index_card(82, "Good"),
         "twin_layers": twin_layer_set(),
         "awe_hotspots": awe_findings_on_twin(),
-        "tagline": "CORE PERFORMS THE WORK. PASSPORT REMEMBERS THE HOME. HABITAT SUSTAINS THE RELATIONSHIP.",
+        "tagline": (
+            "CORE PERFORMS THE WORK. PASSPORT REMEMBERS THE HOME. "
+            "HABITAT SUSTAINS THE RELATIONSHIP."
+        ),
+        "nav": [
+            "Dashboard",
+            "Property DNA",
+            "Home Health",
+            "Systems Studio",
+            "Interior Studio",
+            "Exterior Studio",
+            "Renovation Studio",
+            "Marketplace",
+            "Projects",
+            "Financial Hub",
+            "Documents",
+            "Timeline",
+            "Reports",
+            "Settings",
+        ],
     }
+
+
+def merge_passport_into_dashboard(
+    passport_view: Dict[str, Any],
+    base: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Overlay Passport field-test homeowner view onto mockup dashboard shape.
+    Keeps UI contract stable while elevating truth when Passport is present.
+    """
+    out = base or habitat_dashboard_projection_stub()
+    if not passport_view or passport_view.get("status") != "OK":
+        out["passport_status"] = (passport_view or {}).get("status", "UNAVAILABLE")
+        return out
+
+    dash = passport_view.get("dashboard") or {}
+    twin = passport_view.get("digital_twin") or {}
+    scores = dash.get("scores") or twin.get("scores") or {}
+
+    if scores.get("property_score") is not None:
+        out["property"]["certified_score"] = int(scores["property_score"])
+    if scores.get("awe") is not None:
+        out["awe"] = awe_index_card(int(scores["awe"]), out["awe"].get("label", "Good"))
+
+    # Map system-ish scores when present
+    systems = out["home_health"]["systems"]
+    if scores.get("roof_condition") is not None:
+        systems["roofing"] = int(scores["roof_condition"])
+    if scores.get("energy_score") is not None:
+        systems["exterior"] = int(scores.get("energy_score") or systems["exterior"])
+    if scores.get("moisture_score") is not None:
+        # surface moisture as influence on overall label only
+        pass
+
+    actions = dash.get("next_actions") or dash.get("maintenance_priority") or []
+    if actions:
+        out["predictive_maintenance"]["recommended_actions"] = min(len(actions), 12)
+        out["maintenance_priority"] = actions[:10]
+
+    out["digital_twin"] = {
+        "available": twin.get("twin_available") or (twin.get("plane_count", 0) > 0),
+        "plane_count": twin.get("plane_count", 0),
+        "measurements": twin.get("measurements", {}),
+        "anomaly_counts": twin.get("anomaly_counts") or dash.get("anomaly_counts"),
+    }
+    out["authoritative"] = False  # still non-production until Core seals real missions
+    out["passport_status"] = "OK"
+    out["authority"] = dash.get("authority") or {
+        "source": "passport_projection",
+        "habitat_role": "read-only",
+    }
+    return out
+
+
+def build_dashboard_projection(
+    tenant_id: str = "demo",
+    property_id: str = "demo-property",
+) -> Dict[str, Any]:
+    base = habitat_dashboard_projection_stub()
+    try:
+        from habitat_field_test_projection import get_homeowner_view
+
+        view = get_homeowner_view(tenant_id, property_id)
+        return merge_passport_into_dashboard(view, base)
+    except Exception as e:
+        base["passport_status"] = f"ERROR:{type(e).__name__}"
+        base["passport_message"] = str(e)
+        return base
