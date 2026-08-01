@@ -166,3 +166,33 @@ def bath_proposal(
         "selections": selections,
         "truth": "PROPOSED_DESIGN",
     }
+
+
+def room_refresh_proposal(
+    *,
+    floor_sqft: float = 200,
+    wall_sqft: float = 450,
+    perimeter_lf: float = 60,
+    floor_item: str = "lvp_prem",
+    paint: bool = True,
+    baseboard: bool = True,
+    doors: int = 1,
+) -> Dict[str, Any]:
+    selections = [
+        {"item_id": floor_item, "qty": floor_sqft},
+    ]
+    if paint:
+        selections.append({"item_id": "paint_walls", "qty": wall_sqft})
+        selections.append({"item_id": "paint_ceil", "qty": floor_sqft})
+    if baseboard:
+        selections.append({"item_id": "base_mdf", "qty": perimeter_lf})
+    if doors:
+        selections.append({"item_id": "door_solid", "qty": doors})
+        selections.append({"item_id": "casing_std", "qty": doors * 17})
+    return {
+        "id": str(uuid4()),
+        "kind": ProjectKind.ROOM_REFRESH.value,
+        "label": "Room refresh",
+        "selections": selections,
+        "truth": "PROPOSED_DESIGN",
+    }
