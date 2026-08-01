@@ -1,8 +1,10 @@
 """
-Habitat Field-Test Projection Consumer Helper
+Habitat Field-Test Projection Consumer
 
-Ensures Habitat can cleanly consume the projections that Core produces
-after a sealed Mission Package is published to Passport.
+Shapes Passport projections for:
+- Rotatable 3D digital twin (exterior)
+- AWE anomaly overlays
+- Homeowner-safe scores and maintenance priorities
 
 Habitat remains strictly read-only for canonical property truth.
 """
@@ -11,32 +13,22 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-# Re-use the existing adapter
 try:
     from passport_projection import (
         PassportProjectionAdapter,
         ProjectionUnavailable,
-        TRUTH_CLASSES,
-        build_context,
     )
 except ImportError:
     PassportProjectionAdapter = None
     ProjectionUnavailable = Exception
-    TRUTH_CLASSES = ["VERIFIED", "ESTIMATED", "PROJECTED", "UNKNOWN", "WITHHELD"]
-    build_context = None
 
 
 def extract_digital_twin_summary(projection: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Pull the data Habitat needs to render the rotatable 3D twin
-    and anomaly overlays from a Passport projection.
-    """
     geometry = projection.get("approved_roof_geometry") or projection.get("geometry") or {}
     awe = projection.get("awe_findings") or projection.get("findings") or []
     scores = projection.get("scores") or {}
 
     planes = geometry.get("planes", []) if isinstance(geometry, dict) else []
-    # Never surface WITHHELD geometry to the homeowner view
     visible_planes = [
         p for p in planes
         if p.get("truth_classification") not in ("WITHHELD",)
@@ -57,6 +49,8 @@ def extract_digital_twin_summary(projection: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "twin_available": len(visible_planes) > 0,
         "plane_count": len(visible_planes),
+        "planes": visible_planes,
+        "measurements": geometry.get("measurements", {}) if isinstance(geometry, dict) else {},
         "anomalies": anomalies,
         "anomaly_counts": {
             "critical": sum(1 for a in anomalies if a["severity"] == "CRITICAL"),
@@ -71,34 +65,84 @@ def extract_digital_twin_summary(projection: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def extract_homeowner_dashboard(projection: Dict[str, Any]) -> Dict[str, Any]:
+    """Shape data for the Habitat homeowner dashboard (matches product mockups)."""
+    twin = extract_digital_twin_summary(projection)
+    scores = twin.get("scores") or {}
+    anomalies = twin.get("anomalies") or []
+
+    priority = sorted(
+        anomalies,
+        key=lambda a: {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}.get(a.get("severity"), 9),
+    )
+
+    return {
+        "property_summary": projection.get("property_identity") or projection.get("property_summary") or {},
+        "awe_index": scores.get("awe_index") or scores.get("awe"),
+        "roof_condition": scores.get("roof_condition") or scores.get("roof"),
+        "energy_score": scores.get("energy_score") or scores.get("energy"),
+        "moisture_score": scores.get("moisture_score") or scores.get("moisture"),
+        "property_score": scores.get("property_score") or scores.get("property"),
+        "digital_twin": {
+            "available": twin["twin_available"],
+            "plane_count": twin["plane_count"],
+            "measurements": twin["measurements"],
+        },
+        "anomaly_counts": twin["anomaly_counts"],
+        "maintenance_priority": priority[:10],
+        "next_actions": [
+            a for a in priority if a.get("severity") in ("CRITICAL", "HIGH")
+        ][:5],
+        "authority": {
+            "source": "passport_projection",
+            "habitat_role": "read-only",
+            "truth_policy": twin["truth_policy"],
+        },
+    }
+
+
 def get_homeowner_view(
     tenant_id: str,
     property_id: str,
     correlation_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    High-level helper for Habitat UI: fetch projection and shape it
-    for the 3D twin + AWE anomaly experience.
-    """
     if PassportProjectionAdapter is None:
         return {
             "status": "ADAPTER_UNAVAILABLE",
             "message": "PassportProjectionAdapter not importable in this environment",
+            "property_id": property_id,
         }
 
     adapter = PassportProjectionAdapter()
     try:
-        ctx = adapter.get_context(tenant_id, property_id, correlation_id)
-        twin = extract_digital_twin_summary(ctx)
+        # Support both get_context and common adapter method names
+        if hasattr(adapter, "get_context"):
+            ctx = adapter.get_context(tenant_id, property_id, correlation_id)
+        elif hasattr(adapter, "fetch"):
+            ctx = adapter.fetch(tenant_id, property_id)
+        else:
+            return {
+                "status": "ADAPTER_METHOD_MISSING",
+                "message": "No known fetch method on PassportProjectionAdapter",
+                "property_id": property_id,
+            }
+
+        dashboard = extract_homeowner_dashboard(ctx if isinstance(ctx, dict) else {})
         return {
             "status": "OK",
             "property_id": property_id,
-            "digital_twin": twin,
-            "projection_envelope": ctx.get("_projection"),
+            "dashboard": dashboard,
+            "digital_twin": extract_digital_twin_summary(ctx if isinstance(ctx, dict) else {}),
         }
     except ProjectionUnavailable as e:
         return {
             "status": "PROJECTION_UNAVAILABLE",
+            "message": str(e),
+            "property_id": property_id,
+        }
+    except Exception as e:
+        return {
+            "status": "ERROR",
             "message": str(e),
             "property_id": property_id,
         }
