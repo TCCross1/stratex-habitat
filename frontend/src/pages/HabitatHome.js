@@ -5,9 +5,18 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Brand } from "@/components/Brand";
+import { useAppData } from "@/context/AppDataContext";
+import { CENTRAL_KENTUCKY_DEMO_HOME } from "@/propertyVisualization/centralKentuckyDemoHome";
 
 export default function HabitatHome() {
   const navigate = useNavigate();
+  const { property } = useAppData();
+  const twinImg =
+    property?.twin_image ||
+    property?.thumbnail ||
+    CENTRAL_KENTUCKY_DEMO_HOME?.heroAsset ||
+    CENTRAL_KENTUCKY_DEMO_HOME?.thumbAsset ||
+    null;
   const [data, setData] = useState(null);
   const [openings, setOpenings] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -98,9 +107,14 @@ export default function HabitatHome() {
               </button>
             </div>
           </div>
-          <div className="flex-1 min-h-[220px] rounded-lg border border-dashed border-[rgba(0,229,255,0.35)] bg-[#12181f] flex flex-col items-center justify-center gap-3">
-            <Brand />
-            <p className="text-xs text-[#71717a]">Twin viewport · layers below</p>
+          <div className="flex-1 min-h-[220px] rounded-lg border border-[rgba(0,229,255,0.35)] bg-[#12181f] flex flex-col items-center justify-center gap-3 overflow-hidden relative">
+            {twinImg ? (
+              <img src={twinImg} alt="Property digital twin" className="absolute inset-0 w-full h-full object-cover opacity-80" />
+            ) : (
+              <Brand />
+            )}
+            <div className="relative z-10 flex flex-col items-center gap-2 bg-black/40 px-3 py-2 rounded-lg">
+            <p className="text-xs text-[#e4e4e7]">Twin viewport · layers below</p>
             <div className="flex flex-wrap gap-2 justify-center px-3">
               {layers.map((l) => (
                 <button
@@ -123,6 +137,7 @@ export default function HabitatHome() {
             {activeLayers.awe && (
               <p className="text-[11px] text-orange-400">AWE hotspots active</p>
             )}
+            </div>
           </div>
         </div>
       </section>
