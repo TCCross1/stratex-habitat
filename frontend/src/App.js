@@ -24,6 +24,7 @@ import DesignStudio from "@/pages/DesignStudio";
 import HomeSteward from "@/pages/HomeSteward";
 import RealityStudioFoundation from "@/pages/RealityStudioFoundation";
 import HabitatHome from "@/pages/HabitatHome";
+import ExteriorStudio from "@/pages/ExteriorStudio";
 
 function Protected({ children }) {
   const { user } = useAuth();
@@ -62,6 +63,7 @@ export default function App() {
           <Route path="/maintenance" element={<Maintenance />} />
           <Route path="/insights" element={<Insights />} />
           <Route path="/design-studio" element={<DesignStudio />} />
+          <Route path="/exterior-studio" element={<ExteriorStudio />} />
           <Route path="/reality-foundation" element={<RealityStudioFoundation />} />
           <Route path="/scenario-planner" element={<ModulePage kind="scenario-planner" />} />
           <Route path="/quotes" element={<Quotes />} />
