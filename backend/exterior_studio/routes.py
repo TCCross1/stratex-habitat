@@ -10,15 +10,15 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from .exterior_studio_catalog import list_catalog
-from .exterior_studio_models import (
+from .catalog import list_catalog
+from .models import (
     MaterialSelection,
     Placement,
     ProjectType,
     PropertyBuildContext,
     Vec2,
 )
-from .exterior_studio_service import (
+from .service import (
     calculate_cost,
     create_proposal,
     get_proposal,
