@@ -20,7 +20,7 @@ export const HOMEOWNER_NAV = [
     items: [
       { to: "/systems", label: "Systems Studio", icon: LayoutGrid },
       { to: "/design-studio", label: "Interior Studio", icon: Paintbrush },
-      { to: "/design-studio", label: "Exterior Studio", icon: Building2 },
+      { to: "/exterior-studio", label: "Exterior Studio", icon: Building2 },
       { to: "/scenario-planner", label: "Renovation Studio", icon: PenTool },
       { to: "/reality-foundation", label: "Reality Studio (Dev)", icon: Box },
     ],
