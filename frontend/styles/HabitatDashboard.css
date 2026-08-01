@@ -1,0 +1,71 @@
+/* Habitat dashboard — mockup-aligned shell (desktop) */
+.habitat-shell {
+  display: grid;
+  grid-template-columns: var(--sx-sidebar-width) 1fr;
+  min-height: 100vh;
+  background: var(--sx-bg);
+  color: var(--sx-text);
+  font-family: var(--sx-font);
+}
+.habitat-sidebar {
+  background: #0a0d12;
+  border-right: 1px solid var(--sx-border);
+  padding: 1rem 0.75rem;
+}
+.habitat-sidebar a {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.75rem;
+  color: var(--sx-text-muted);
+  border-radius: var(--sx-radius-sm);
+  text-decoration: none;
+}
+.habitat-sidebar a.active,
+.habitat-sidebar a:hover {
+  color: var(--sx-cyan);
+  background: rgba(0, 229, 255, 0.08);
+  box-shadow: inset 3px 0 0 var(--sx-cyan);
+}
+.habitat-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--sx-border);
+}
+.habitat-logo-wordmark {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.habitat-logo-wordmark .x { color: var(--sx-orange); }
+.habitat-logo-wordmark .habitat {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--sx-cyan);
+  letter-spacing: 0.35em;
+}
+.habitat-card {
+  background: var(--sx-bg-card);
+  border: 1px solid var(--sx-border);
+  border-radius: var(--sx-radius);
+  padding: 1rem;
+  box-shadow: var(--sx-glow);
+}
+.habitat-score {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--sx-cyan);
+}
+.habitat-chip-fair { color: var(--sx-orange-soft); }
+.habitat-chip-good { color: var(--sx-green); }
+.habitat-footer-tagline {
+  text-align: center;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  color: var(--sx-text-muted);
+  padding: 1rem;
+  border-top: 1px solid var(--sx-border);
+}
+.opening-detail dt { color: var(--sx-text-label); font-size: 0.75rem; }
+.opening-detail dd { margin: 0 0 0.75rem; font-size: 1rem; }
