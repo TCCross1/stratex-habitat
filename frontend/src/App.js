@@ -23,6 +23,7 @@ import ModulePage from "@/pages/ModulePage";
 import DesignStudio from "@/pages/DesignStudio";
 import HomeSteward from "@/pages/HomeSteward";
 import RealityStudioFoundation from "@/pages/RealityStudioFoundation";
+import HabitatHome from "@/pages/HabitatHome";
 
 function Protected({ children }) {
   const { user } = useAuth();
@@ -41,7 +42,7 @@ function Protected({ children }) {
 export default function App() {
   const { user } = useAuth();
   const location = useLocation();
-  const home = user?.role === "contractor" ? "/marketplace" : "/twin";
+  const home = user?.role === "contractor" ? "/marketplace" : "/dashboard";
 
   useEffect(() => { recordPath(location.pathname); }, [location.pathname]);
 
@@ -52,6 +53,7 @@ export default function App() {
         <Route path="/login" element={user ? <Navigate to={home} replace /> : <Login />} />
         <Route element={<Protected><AppShell /></Protected>}>
           <Route path="/" element={<Navigate to={home} replace />} />
+          <Route path="/dashboard" element={<HabitatHome />} />
           <Route path="/twin" element={<DigitalTwin />} />
           <Route path="/steward" element={<HomeSteward />} />
           <Route path="/systems" element={<SystemsAssets />} />
