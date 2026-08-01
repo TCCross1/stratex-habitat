@@ -1,13 +1,17 @@
-"""API: exterior openings + AWE twin layers for Habitat."""
+"""API: exterior openings + AWE twin layers for Habitat dashboard (mockup-locked)."""
 
 from __future__ import annotations
 
 from fastapi import APIRouter
 
-from .openings import demo_openings_for_property
-from .awe_twin import habitat_dashboard_projection_stub, twin_layer_set, awe_findings_on_twin
+from habitat_ui.openings import demo_openings_for_property
+from habitat_ui.awe_twin import (
+    habitat_dashboard_projection_stub,
+    twin_layer_set,
+    awe_findings_on_twin,
+)
 
-router = APIRouter(prefix="/api/habitat", tags=["habitat-ui"])
+router = APIRouter(prefix="/habitat", tags=["habitat-ui"])
 
 
 @router.get("/dashboard/projection")
@@ -34,9 +38,8 @@ def list_openings():
 
 @router.get("/openings/{opening_id}")
 def get_opening(opening_id: str):
-    for o in demo_openings_for_property():
+    items = demo_openings_for_property()
+    for o in items:
         if o["id"] == opening_id:
             return o
-    # demo ids are random; return first for field-test wiring
-    items = demo_openings_for_property()
     return items[0] if items else {"error": "not_found"}
