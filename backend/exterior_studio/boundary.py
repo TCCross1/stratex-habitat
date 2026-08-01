@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import List
 
-from .exterior_studio_models import (
+from .models import (
     BoundaryWarning,
     Placement,
     PlacementWarningLevel,
