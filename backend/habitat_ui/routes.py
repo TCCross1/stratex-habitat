@@ -73,3 +73,106 @@ def projection_contract():
         "validation_example": validate_projection(sample),
     }
 
+
+@router.get("/projection/from_sample_mission")
+def projection_from_sample_mission():
+    """
+    Field-test: build habitat.projection.v1-shaped dashboard using the same
+    rules Core will use after seal (local sample geometry/AWE/openings).
+    Does not call Core; mirrors export_habitat_projection defaults.
+    """
+    from habitat_ui.hydrate_from_contract import dashboard_from_contract, openings_ui_from_contract
+    from habitat_ui.projection_contract import empty_field_ready_projection
+
+    # Local mirror of Core sample export (no cross-repo import at runtime)
+    sample = empty_field_ready_projection("prop-field-test-ky")
+    sample["authoritative"] = False
+    sample["property_identity"] = {
+        "address_line": "1234 Appalachian Way",
+        "city_state_zip": "London, KY 40741",
+        "geo": None,
+    }
+    sample["scores"] = {
+        "certified_score": 87,
+        "score_scale": 1000,
+        "awe_index": 82,
+        "property_score": 87,
+        "roof_condition": 68,
+        "energy_score": 71,
+        "moisture_score": 70,
+    }
+    sample["home_health"] = {
+        "overall": 72,
+        "systems": {
+            "structure": 76,
+            "roofing": 68,
+            "hvac": 74,
+            "plumbing": 71,
+            "electrical": 78,
+            "exterior": 69,
+        },
+    }
+    sample["awe"] = {
+        "index": 82,
+        "brand": "AWE™",
+        "hotspots": [
+            {
+                "id": "awe-attic-heat",
+                "title": "Attic heat loss",
+                "domain": "energy",
+                "severity": "high",
+                "summary": "Elevated thermal signature at ridge / attic plane.",
+                "report_ref": "awe/energy/attic-heat",
+                "truth": "ESTIMATED",
+            }
+        ],
+    }
+    sample["twin"] = {
+        "mesh_ref": None,
+        "layers": ["finish", "thermal", "moisture", "framing", "energy", "openings", "awe"],
+        "plane_count": 4,
+        "withheld_plane_count": 1,
+        "measurements": {
+            "total_roof_area_sqft": 2015,
+            "pitch_primary": "6/12",
+        },
+    }
+    sample["openings"] = [
+        {
+            "id": "win-front-lr",
+            "kind": "window",
+            "label": "Front — Living Room Picture",
+            "elevation": "front",
+            "unit_w_in": 72,
+            "unit_h_in": 48,
+            "rough_w_in": 74,
+            "rough_h_in": 50.5,
+            "material": "vinyl",
+            "condition": "fair",
+            "truth": "ESTIMATED",
+        },
+        {
+            "id": "door-front",
+            "kind": "door",
+            "label": "Front Entry",
+            "elevation": "front",
+            "unit_w_in": 36,
+            "unit_h_in": 80,
+            "rough_w_in": 38,
+            "rough_h_in": 82.5,
+            "material": "fiberglass",
+            "condition": "good",
+            "truth": "ESTIMATED",
+        },
+    ]
+    sample["maintenance"] = {
+        "next_12_months_usd": 2840,
+        "actions": [{"title": "Attic heat loss", "severity": "high"}],
+    }
+    dash = dashboard_from_contract(sample)
+    return {
+        "dashboard": dash,
+        "openings": openings_ui_from_contract(sample["openings"]),
+        "contract": sample,
+    }
+
