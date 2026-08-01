@@ -10,8 +10,9 @@ import { getCentralKentuckyDemoVisualization } from "@/propertyVisualization/cen
 import { Switch } from "@/components/ui/switch";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Box, Grid3x3, Crosshair, MousePointer2, Ruler, PanelRightOpen, Layers as LayersIcon, X } from "lucide-react";
+import TwinIntelligencePanel from "@/components/TwinIntelligencePanel";
 
-const LAYERS = ["Thermal", "Energy Flow", "Water Flow", "Structural", "Electrical", "Plumbing", "HVAC", "Roofing"];
+const LAYERS = ["Thermal", "Energy Flow", "Water Flow", "Structural", "Electrical", "Plumbing", "HVAC", "Roofing", "AWE", "Openings"];
 const STATUS_COLOR = { Excellent: "#14f1d9", Good: "#00ff66", Fair: "#ffb800", Active: "#ff6b00" };
 
 function Ring({ value }) {
@@ -50,6 +51,9 @@ export default function DigitalTwin() {
   const [view, setView] = useState("3D");
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [showLayers, setShowLayers] = useState(!device.isPhone);
+  const [showIntel, setShowIntel] = useState(true);
+  const [selectedOpening, setSelectedOpening] = useState(null);
+  const [selectedAwe, setSelectedAwe] = useState(null);
 
   // Assets remain available for future non-demo projections; demo twin prefers empty Inspector.
   useQuery({ queryKey: ["assets", pid],
@@ -219,6 +223,36 @@ export default function DigitalTwin() {
           {inspector}
         </SheetContent>
       </Sheet>
+
+      {showIntel && (
+        <div className="hidden lg:block w-[300px] shrink-0">
+          <TwinIntelligencePanel
+            onSelectOpening={(o) => { setSelectedOpening(o); setSelectedAwe(null); }}
+            onSelectAwe={(h) => { setSelectedAwe(h); setSelectedOpening(null); }}
+          />
+        </div>
+      )}
+      {(selectedOpening || selectedAwe) && (
+        <div className="fixed bottom-20 right-4 z-40 max-w-sm p-4 rounded-lg border border-[#14f1d9]/40 bg-[#111113] shadow-xl">
+          {selectedOpening && (
+            <>
+              <div className="text-sm font-semibold text-white">{selectedOpening.label}</div>
+              <div className="text-xs text-[#a1a1aa] mt-1">Unit {selectedOpening.unit_display}</div>
+              <div className="text-sm text-[#14f1d9] font-bold">RO {selectedOpening.rough_opening_display}</div>
+              <p className="text-[10px] text-[#71717a] mt-2">{selectedOpening.disclaimer}</p>
+            </>
+          )}
+          {selectedAwe && (
+            <>
+              <div className="text-sm font-semibold text-white">{selectedAwe.title}</div>
+              <div className="text-[10px] text-orange-400 uppercase">{selectedAwe.severity} · {selectedAwe.domain}</div>
+              <p className="text-xs text-[#a1a1aa] mt-1">{selectedAwe.summary}</p>
+              <div className="text-[10px] text-[#52525b] mt-1">Report: {selectedAwe.report_ref}</div>
+            </>
+          )}
+          <button type="button" className="mt-2 text-[11px] text-[#14f1d9]" onClick={() => { setSelectedOpening(null); setSelectedAwe(null); }}>Dismiss</button>
+        </div>
+      )}
     </div>
   );
 }
