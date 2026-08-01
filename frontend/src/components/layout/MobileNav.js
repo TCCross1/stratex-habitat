@@ -1,13 +1,13 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { Box, Search, DollarSign, Store, Users } from "lucide-react";
+import { Box, Search, DollarSign, Store, Users, Home } from "lucide-react";
 
 const HOME_TABS = [
+  { to: "/dashboard", label: "Home", icon: Home },
   { to: "/twin", label: "Twin", icon: Box },
   { to: "/findings", label: "Findings", icon: Search },
-  { to: "/quotes", label: "Quotes", icon: DollarSign },
   { to: "/marketplace", label: "Market", icon: Store },
-  { to: "/contractors", label: "Pros", icon: Users },
+  { to: "/reports", label: "Reports", icon: DollarSign },
 ];
 const CON_TABS = [
   { to: "/marketplace", label: "Leads", icon: Store },
@@ -26,9 +26,9 @@ export default function MobileNav() {
     <nav className="md:hidden fixed bottom-0 inset-x-0 bg-[#070708] border-t border-[#27272a]
       flex items-center justify-around z-50 h-16 safe-bottom pl-safe pr-safe" data-testid="mobile-nav">
       {tabs.map((t) => {
-        const active = pathname === t.to;
+        const active = pathname === t.to || (t.to === "/dashboard" && pathname === "/");
         return (
-          <button key={t.to} onClick={() => navigate(t.to)}
+          <button key={t.to + t.label} onClick={() => navigate(t.to)}
             data-testid={`mobile-nav-${t.label.toLowerCase()}`}
             className="flex flex-col items-center gap-1 px-3 py-1">
             <t.icon size={20} className={active ? "text-teal" : "text-[#71717a]"} />
