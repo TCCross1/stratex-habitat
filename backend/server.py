@@ -730,6 +730,13 @@ api_router.include_router(reality_router)
 from habitat_ui.routes import router as habitat_ui_router
 api_router.include_router(habitat_ui_router)
 
+# Interior Design Studio (LiDAR plan, remodel proposals, live estimate)
+try:
+    from interior_studio.routes import router as interior_studio_router
+    api_router.include_router(interior_studio_router)
+except Exception as e:
+    logging.getLogger("habitat").warning(f"interior_studio routes not loaded: {e}")
+
 # Exterior Design Studio (plot outline, roof, foundation, cost)
 try:
     from exterior_studio.addition_routes import router as exterior_addition_router
