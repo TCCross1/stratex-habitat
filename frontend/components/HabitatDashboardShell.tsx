@@ -101,6 +101,35 @@ export function HabitatDashboardShell({ data }: { data: DashboardProjection }) {
           <div className="habitat-score">{data.awe.awe_index}</div>
           <span>{data.awe.label}</span>
         </section>
+        {data.financial && (
+          <section className="habitat-card">
+            <h2>Financial Dashboard</h2>
+            <p>Current value: ${Number(data.financial.current_home_value || 0).toLocaleString()}</p>
+            <p>Equity: ${Number(data.financial.equity || 0).toLocaleString()}</p>
+            <p>Investment in home: ${Number(data.financial.investment_in_home || 0).toLocaleString()}</p>
+            <p>Projected (5yr): ${Number(data.financial.projected_value_5yr || 0).toLocaleString()}</p>
+          </section>
+        )}
+        <section className="habitat-card">
+          <h2>Twin layers</h2>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {(data.twin_layers || []).map((l: any) => (
+              <span
+                key={l.id}
+                style={{
+                  border: "1px solid rgba(0,229,255,0.35)",
+                  borderRadius: 999,
+                  padding: "6px 12px",
+                  color: l.default ? "#00e5ff" : "#8b9bb0",
+                  fontSize: 12,
+                }}
+              >
+                {l.label}
+              </span>
+            ))}
+          </div>
+          <button type="button" style={{ marginTop: 12 }}>Explore 3D Twin</button>
+        </section>
         <footer className="habitat-footer-tagline">{data.tagline}</footer>
       </main>
     </div>
