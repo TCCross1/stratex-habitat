@@ -726,6 +726,22 @@ from reality.router import reality_router
 import reality.indexes as reality_indexes
 api_router.include_router(reality_router)
 
+# Field-test: Habitat UI projection, openings, AWE twin (mockup-locked)
+from habitat_ui.routes import router as habitat_ui_router
+api_router.include_router(habitat_ui_router)
+
+# Exterior Design Studio (plot outline, roof, foundation, cost)
+try:
+    from exterior_studio.addition_routes import router as exterior_addition_router
+    api_router.include_router(exterior_addition_router)
+except Exception as e:
+    logging.getLogger("habitat").warning(f"exterior_studio addition routes not loaded: {e}")
+try:
+    from exterior_studio.routes import router as exterior_studio_router
+    api_router.include_router(exterior_studio_router)
+except Exception as e:
+    logging.getLogger("habitat").warning(f"exterior_studio routes not loaded: {e}")
+
 app.include_router(api_router)
 app.add_middleware(CORSMiddleware, allow_credentials=True,
                    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
