@@ -1,62 +1,61 @@
 import {
   Box, BarChart3, Ruler, FileText, DollarSign, Folder, Users, ShieldCheck,
   Settings, HelpCircle, Activity, Search, Wrench, Lightbulb, PenTool, GitBranch,
-  Store, FileBarChart, Star, ClipboardList, LayoutGrid, Sparkles, Home,
+  Store, FileBarChart, Star, ClipboardList, LayoutGrid, Sparkles, Home, Dna,
+  HeartPulse, Building2, Paintbrush, Landmark, Clock,
 } from "lucide-react";
 
-// Left section navigation (homeowner — mirrors reference image)
+// Left section navigation — aligned to approved Habitat mockup IA
 export const HOMEOWNER_NAV = [
   {
     group: "Home",
     items: [
       { to: "/dashboard", label: "Dashboard", icon: Home },
+      { to: "/twin", label: "Property DNA", icon: Dna },
+      { to: "/steward", label: "Home Health", icon: HeartPulse },
     ],
   },
   {
-    group: "Twin",
+    group: "Studios",
     items: [
-      { to: "/twin", label: "Digital Twin", icon: Box },
-      { to: "/systems", label: "Systems & Assets", icon: LayoutGrid },
-      { to: "/telemetry", label: "Live Telemetry", icon: Activity },
+      { to: "/systems", label: "Systems Studio", icon: LayoutGrid },
+      { to: "/design-studio", label: "Interior Studio", icon: Paintbrush },
+      { to: "/design-studio", label: "Exterior Studio", icon: Building2 },
+      { to: "/scenario-planner", label: "Renovation Studio", icon: PenTool },
+      { to: "/reality-foundation", label: "Reality Studio (Dev)", icon: Box },
     ],
   },
   {
     group: "Intelligence",
     items: [
-      { to: "/steward", label: "Home Steward AI", icon: Sparkles },
       { to: "/findings", label: "Findings", icon: Search, badgeKey: "findings" },
       { to: "/maintenance", label: "Maintenance", icon: Wrench, badgeKey: "maintenance" },
       { to: "/insights", label: "Insights", icon: Lightbulb },
+      { to: "/telemetry", label: "Live Telemetry", icon: Activity },
     ],
   },
   {
-    group: "Design & Plan",
+    group: "Marketplace & Projects",
     items: [
-      { to: "/design-studio", label: "Design Studio", icon: PenTool },
-      { to: "/reality-foundation", label: "Reality Studio (Dev)", icon: Box },
-      { to: "/scenario-planner", label: "Scenario Planner", icon: GitBranch },
-    ],
-  },
-  {
-    group: "Procurement",
-    items: [
-      { to: "/quotes", label: "Quotes", icon: DollarSign, badgeKey: "quotes" },
       { to: "/marketplace", label: "Marketplace", icon: Store },
-    ],
-  },
-  {
-    group: "Network",
-    items: [
-      { to: "/contractors", label: "Contractor Profiles", icon: Users },
-      { to: "/reviews", label: "Reviews & Ratings", icon: Star },
+      { to: "/quotes", label: "Projects / Quotes", icon: DollarSign, badgeKey: "quotes" },
       { to: "/requests", label: "Project Requests", icon: ClipboardList },
     ],
   },
   {
-    group: "Documents",
+    group: "Financial & Network",
+    items: [
+      { to: "/insights", label: "Financial Hub", icon: Landmark },
+      { to: "/contractors", label: "Contractor Profiles", icon: Users },
+      { to: "/reviews", label: "Reviews & Ratings", icon: Star },
+    ],
+  },
+  {
+    group: "Records",
     items: [
       { to: "/documents", label: "Documents", icon: FileText },
       { to: "/reports", label: "Reports", icon: FileBarChart },
+      { to: "/steward", label: "Timeline", icon: Clock },
     ],
   },
 ];
