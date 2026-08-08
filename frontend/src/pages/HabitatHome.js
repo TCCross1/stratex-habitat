@@ -17,6 +17,7 @@ export default function HabitatHome() {
     CENTRAL_KENTUCKY_DEMO_HOME?.heroAsset ||
     CENTRAL_KENTUCKY_DEMO_HOME?.thumbAsset ||
     null;
+  const API = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
   const [data, setData] = useState(null);
   const [openings, setOpenings] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -26,9 +27,9 @@ export default function HabitatHome() {
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/habitat/dashboard/projection").then((r) => r.json()),
-      fetch("/api/habitat/openings").then((r) => r.json()),
-      fetch("/api/habitat/twin/layers").then((r) => r.json()),
+      fetch(`${API}/api/habitat/dashboard/projection`).then((r) => r.json()),
+      fetch(`${API}/api/habitat/openings`).then((r) => r.json()),
+      fetch(`${API}/api/habitat/twin/layers`).then((r) => r.json()),
     ])
       .then(([dash, opens, lyr]) => {
         setData(dash);
